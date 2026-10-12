@@ -5,7 +5,7 @@
 /** Unifica dash/underscore negli id modello: `icon-eu` e `icon_eu` matchano. */
 export function normalizeModelId(id: string): string {
   const lower = id.trim().toLowerCase().replace(/-/g, "_");
-  if (lower === 'icon' || lower === 'icon_d2') return 'icon_d2';
+  if (lower === "icon" || lower === "icon_d2") return "icon_d2";
   return lower;
 }
 
