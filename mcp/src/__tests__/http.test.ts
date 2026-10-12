@@ -110,14 +110,14 @@ describe("buildUrl", () => {
   it("handles array parameters by appending multiple times", () => {
     const url = buildUrl("https://example.com/api", {
       models: ["ecmwf", "icon"],
-      ids: [1, 2, 3],
+      ids: ["1", "2", "3"],
     });
     expect(url).toBe("https://example.com/api?models=ecmwf&models=icon&ids=1&ids=2&ids=3");
   });
 
   it("filters out undefined and empty strings from arrays", () => {
     const url = buildUrl("https://example.com/api", {
-      models: ["ecmwf", "", undefined, "icon"],
+      models: ["ecmwf", "", undefined as unknown as string, "icon"],
     });
     // Array values that are undefined or empty string are ignored
     expect(url).toBe("https://example.com/api?models=ecmwf&models=icon");
