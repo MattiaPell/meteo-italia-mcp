@@ -346,196 +346,174 @@ export async function handleOpenMeteoSeasonal({
   });
 }
 
+const GEOCODE_TOOL = {
+  title: "Open-Meteo Geocoding",
+  description:
+    "Resolve a place name to coordinates. Returns results filtered to Italy when possible, with lat/lon, elevation and admin region. Use this before any forecast call.",
+  inputSchema: {
+    name: z.string().describe("City or place name to search"),
+    count: z.coerce.number().int().min(1).max(50).default(10).describe("Max results"),
+    language: z.string().default("it").describe("Response language"),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
+const FORECAST_TOOL = {
+  title: "Open-Meteo Forecast",
+  description:
+    "Multi-model numerical forecast. Pass models (comma list), hourly variables, daily variables. Supports past_days and forecast_days. Core call for the skill's Step A.",
+  inputSchema: {
+    ...latLon,
+    ...openMeteoCommon,
+    models: z.string().optional().describe("Comma-separated model list, e.g. ecmwf_ifs025,icon_seamless,gfs_seamless"),
+    hourly: z.string().optional().describe("Comma-separated hourly variables"),
+    daily: z.string().optional().describe("Comma-separated daily variables"),
+    current: z.string().optional().describe("Comma-separated current variables"),
+    level: z
+      .enum(["1", "2", "3", "auto"])
+      .default("auto")
+      .describe(
+        "Fetch detail level: 1=core, 2=event-driven advanced, 3=use-case specialized, auto=decide from Level-1 triggers",
+      ),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
+const ARCHIVE_TOOL = {
+  title: "Open-Meteo Archive (ERA5)",
+  description:
+    "Historical reanalysis (ERA5) for climatology baselines. Provide start_date and end_date (YYYY-MM-DD). Used by skill Step B.",
+  inputSchema: {
+    ...latLon,
+    start_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe("Start date YYYY-MM-DD"),
+    end_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe("End date YYYY-MM-DD"),
+    daily: z.string().optional().describe("Comma-separated daily variables"),
+    hourly: z.string().optional().describe("Comma-separated hourly variables"),
+    timezone: z.string().default("Europe/Rome"),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
+const MARINE_TOOL = {
+  title: "Open-Meteo Marine",
+  description:
+    "Marine weather: wave height/direction/period, SST. Activate for coastal/nautical use cases (skill Step F).",
+  inputSchema: {
+    ...latLon,
+    ...openMeteoCommon,
+    hourly: z.string().optional().describe("Comma-separated hourly marine variables"),
+    daily: z.string().optional().describe("Comma-separated daily marine variables"),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
+const AIR_QUALITY_TOOL = {
+  title: "Open-Meteo Air Quality (CAMS)",
+  description:
+    "European air quality (CAMS): PM10/PM2.5, NO2, O3, SO2, CO, dust, European AQI, pollen. Used by skill Step H.",
+  inputSchema: {
+    ...latLon,
+    ...openMeteoCommon,
+    hourly: z.string().optional().describe("Comma-separated hourly AQ variables"),
+    current: z.string().optional().describe("Comma-separated current AQ variables"),
+    domains: z.string().default("cams_europe").describe("Model domain, default cams_europe"),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
+const ENSEMBLE_TOOL = {
+  title: "Open-Meteo Ensemble",
+  description:
+    "Ensemble probabilistic forecasts with spread (sigma between members). Used by skill Step J for uncertainty.",
+  inputSchema: {
+    ...latLon,
+    ...openMeteoCommon,
+    models: z.string().optional().describe("Comma-separated ensemble models"),
+    hourly: z.string().optional().describe("Comma-separated hourly variables (include _spread vars)"),
+    daily: z.string().optional().describe("Comma-separated daily variables"),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
+const FLOOD_TOOL = {
+  title: "Open-Meteo Flood (GloFAS)",
+  description:
+    "Simulated river discharge at 5 km resolution from 1984 up to 12 months forecast. Uses GloFAS v4. Fits Step G (risk idrogeologico). Tip: variare coordinate di ±0.1° per selezionare il corso d'acqua corretto.",
+  inputSchema: {
+    ...latLon,
+    ...openMeteoCommon,
+    daily: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated daily flood variables: river_discharge, river_discharge_mean, river_discharge_median, river_discharge_max, river_discharge_min, river_discharge_p25, river_discharge_p75",
+      ),
+    model: z
+      .string()
+      .optional()
+      .describe(
+        "Flood model (default: GloFAS v4 Seamless). Valid: seo_v4_forecast, seo_v4_consolidated, glofas_v3_seamless, glofas_v3_forecast, glofas_v3_consolidated",
+      ),
+    ensemble: z.boolean().default(false).describe("Set true to return all 50 ensemble members"),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
+const SEASONAL_TOOL = {
+  title: "Open-Meteo Seasonal (ECMWF, 7 mesi)",
+  description:
+    "Seasonal weather forecast up to 7 months ahead (ECMWF SEAS5). 6-hourly resolution. Variables: temperature_2m, precipitation, pressure_msl, cloud_cover, geopotential_height, soil moisture/temperature. Usato per outlook climatico Step K.",
+  inputSchema: {
+    ...latLon,
+    ...openMeteoCommon,
+    seasonal: z
+      .string()
+      .optional()
+      .describe(
+        "Comma-separated seasonal variables: temperature_2m, precipitation, pressure_msl, cloud_cover, soil_moisture_total, geopotential_height_500hPa, temperature_850hPa, soil_temperature_0_to_7cm, etc.",
+      ),
+    models: z.string().default("ecmwf_seasonal_seamless").describe("Seasonal model: ecmwf_seasonal_seamless (default)"),
+    temporal_resolution: z.string().optional().describe("Time aggregation (default: hourly_6)"),
+  },
+  outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+};
+
 export function registerOpenMeteo(server: McpServer) {
   // --- Geocoding ---------------------------------------------------------
-  server.registerTool(
-    "open_meteo_geocode",
-    {
-      title: "Open-Meteo Geocoding",
-      description:
-        "Resolve a place name to coordinates. Returns results filtered to Italy when possible, with lat/lon, elevation and admin region. Use this before any forecast call.",
-      inputSchema: {
-        name: z.string().describe("City or place name to search"),
-        count: z.coerce.number().int().min(1).max(50).default(10).describe("Max results"),
-        language: z.string().default("it").describe("Response language"),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoGeocode,
-  );
+  server.registerTool("open_meteo_geocode", GEOCODE_TOOL, handleOpenMeteoGeocode);
 
   // --- Forecast (TIER 1, LIVELLI 1-3) -----------------------------------
-  server.registerTool(
-    "open_meteo_forecast",
-    {
-      title: "Open-Meteo Forecast",
-      description:
-        "Multi-model numerical forecast. Pass models (comma list), hourly variables, daily variables. Supports past_days and forecast_days. Core call for the skill's Step A.",
-      inputSchema: {
-        ...latLon,
-        ...openMeteoCommon,
-        models: z
-          .string()
-          .optional()
-          .describe("Comma-separated model list, e.g. ecmwf_ifs025,icon_seamless,gfs_seamless"),
-        hourly: z.string().optional().describe("Comma-separated hourly variables"),
-        daily: z.string().optional().describe("Comma-separated daily variables"),
-        current: z.string().optional().describe("Comma-separated current variables"),
-        level: z
-          .enum(["1", "2", "3", "auto"])
-          .default("auto")
-          .describe(
-            "Fetch detail level: 1=core, 2=event-driven advanced, 3=use-case specialized, auto=decide from Level-1 triggers",
-          ),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoForecast,
-  );
+  server.registerTool("open_meteo_forecast", FORECAST_TOOL, handleOpenMeteoForecast);
 
   // --- Archive / ERA5 climatology (Step B) ------------------------------
-  server.registerTool(
-    "open_meteo_archive",
-    {
-      title: "Open-Meteo Archive (ERA5)",
-      description:
-        "Historical reanalysis (ERA5) for climatology baselines. Provide start_date and end_date (YYYY-MM-DD). Used by skill Step B.",
-      inputSchema: {
-        ...latLon,
-        start_date: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .describe("Start date YYYY-MM-DD"),
-        end_date: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .describe("End date YYYY-MM-DD"),
-        daily: z.string().optional().describe("Comma-separated daily variables"),
-        hourly: z.string().optional().describe("Comma-separated hourly variables"),
-        timezone: z.string().default("Europe/Rome"),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoArchive,
-  );
+  server.registerTool("open_meteo_archive", ARCHIVE_TOOL, handleOpenMeteoArchive);
 
   // --- Marine (Step F) --------------------------------------------------
-  server.registerTool(
-    "open_meteo_marine",
-    {
-      title: "Open-Meteo Marine",
-      description:
-        "Marine weather: wave height/direction/period, SST. Activate for coastal/nautical use cases (skill Step F).",
-      inputSchema: {
-        ...latLon,
-        ...openMeteoCommon,
-        hourly: z.string().optional().describe("Comma-separated hourly marine variables"),
-        daily: z.string().optional().describe("Comma-separated daily marine variables"),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoMarine,
-  );
+  server.registerTool("open_meteo_marine", MARINE_TOOL, handleOpenMeteoMarine);
 
   // --- Air Quality / CAMS (Step H) --------------------------------------
-  server.registerTool(
-    "open_meteo_air_quality",
-    {
-      title: "Open-Meteo Air Quality (CAMS)",
-      description:
-        "European air quality (CAMS): PM10/PM2.5, NO2, O3, SO2, CO, dust, European AQI, pollen. Used by skill Step H.",
-      inputSchema: {
-        ...latLon,
-        ...openMeteoCommon,
-        hourly: z.string().optional().describe("Comma-separated hourly AQ variables"),
-        current: z.string().optional().describe("Comma-separated current AQ variables"),
-        domains: z.string().default("cams_europe").describe("Model domain, default cams_europe"),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoAirQuality,
-  );
+  server.registerTool("open_meteo_air_quality", AIR_QUALITY_TOOL, handleOpenMeteoAirQuality);
 
   // --- Ensemble (Step J) ------------------------------------------------
-  server.registerTool(
-    "open_meteo_ensemble",
-    {
-      title: "Open-Meteo Ensemble",
-      description:
-        "Ensemble probabilistic forecasts with spread (sigma between members). Used by skill Step J for uncertainty.",
-      inputSchema: {
-        ...latLon,
-        ...openMeteoCommon,
-        models: z.string().optional().describe("Comma-separated ensemble models"),
-        hourly: z.string().optional().describe("Comma-separated hourly variables (include _spread vars)"),
-        daily: z.string().optional().describe("Comma-separated daily variables"),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoEnsemble,
-  );
+  server.registerTool("open_meteo_ensemble", ENSEMBLE_TOOL, handleOpenMeteoEnsemble);
 
   // --- Flood (GloFAS) ------------------------------------------------------
-  server.registerTool(
-    "open_meteo_flood",
-    {
-      title: "Open-Meteo Flood (GloFAS)",
-      description:
-        "Simulated river discharge at 5 km resolution from 1984 up to 12 months forecast. Uses GloFAS v4. Fits Step G (risk idrogeologico). Tip: variare coordinate di ±0.1° per selezionare il corso d'acqua corretto.",
-      inputSchema: {
-        ...latLon,
-        ...openMeteoCommon,
-        daily: z
-          .string()
-          .optional()
-          .describe(
-            "Comma-separated daily flood variables: river_discharge, river_discharge_mean, river_discharge_median, river_discharge_max, river_discharge_min, river_discharge_p25, river_discharge_p75",
-          ),
-        model: z
-          .string()
-          .optional()
-          .describe(
-            "Flood model (default: GloFAS v4 Seamless). Valid: seo_v4_forecast, seo_v4_consolidated, glofas_v3_seamless, glofas_v3_forecast, glofas_v3_consolidated",
-          ),
-        ensemble: z.boolean().default(false).describe("Set true to return all 50 ensemble members"),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoFlood,
-  );
+  server.registerTool("open_meteo_flood", FLOOD_TOOL, handleOpenMeteoFlood);
 
   // --- Seasonal (ECMWF, 7 mesi) --------------------------------------------
-  server.registerTool(
-    "open_meteo_seasonal",
-    {
-      title: "Open-Meteo Seasonal (ECMWF, 7 mesi)",
-      description:
-        "Seasonal weather forecast up to 7 months ahead (ECMWF SEAS5). 6-hourly resolution. Variables: temperature_2m, precipitation, pressure_msl, cloud_cover, geopotential_height, soil moisture/temperature. Usato per outlook climatico Step K.",
-      inputSchema: {
-        ...latLon,
-        ...openMeteoCommon,
-        seasonal: z
-          .string()
-          .optional()
-          .describe(
-            "Comma-separated seasonal variables: temperature_2m, precipitation, pressure_msl, cloud_cover, soil_moisture_total, geopotential_height_500hPa, temperature_850hPa, soil_temperature_0_to_7cm, etc.",
-          ),
-        models: z
-          .string()
-          .default("ecmwf_seasonal_seamless")
-          .describe("Seasonal model: ecmwf_seasonal_seamless (default)"),
-        temporal_resolution: z.string().optional().describe("Time aggregation (default: hourly_6)"),
-      },
-      outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    },
-    handleOpenMeteoSeasonal,
-  );
+  server.registerTool("open_meteo_seasonal", SEASONAL_TOOL, handleOpenMeteoSeasonal);
 }

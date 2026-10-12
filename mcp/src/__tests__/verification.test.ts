@@ -33,7 +33,7 @@ describe("calculateStats", () => {
       n: 4,
       mae: 2.5,
       bias: -0.5,
-      rmse: 2.7
+      rmse: 2.7,
     });
   });
 

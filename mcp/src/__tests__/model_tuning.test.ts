@@ -134,6 +134,8 @@ describe("getWeights", () => {
     expect(weights.gfs_seamless).toBe(1.0);
     expect(weights.icon_seamless).toBe(0.9);
     expect(weights.meteofrance_seamless).toBe(0.9);
+  });
+});
 
 describe("getUhiCorrection", () => {
   it("returns null if cityName is missing", () => {
