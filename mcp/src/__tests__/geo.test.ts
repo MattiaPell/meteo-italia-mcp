@@ -77,8 +77,6 @@ describe("getDistance", () => {
     const lon1 = 9.19;
     const lat2 = 41.89;
     const lon2 = 12.48;
-    expect(getDistance(lat1, lon1, lat2, lon2)).toBeCloseTo(
-      getDistance(lat2, lon2, lat1, lon1),
-    );
+    expect(getDistance(lat1, lon1, lat2, lon2)).toBeCloseTo(getDistance(lat2, lon2, lat1, lon1));
   });
 });
