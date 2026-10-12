@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { registerModelTuning } from "../model_tuning.js";
+import { registerModelTuning, getWeights } from "../model_tuning.js";
 
 async function makeClient(...registrations: Array<(s: McpServer) => void>): Promise<Client> {
   const server = new McpServer({ name: "test-server", version: "1.0.0" });
@@ -94,5 +94,45 @@ describe("meteo_model_tuning", () => {
     expect(sc.data.weights.ecmwf_ifs).toBe(1.5);
     expect(sc.data.weights.gfs_seamless).toBe(1.0);
     await client.close();
+  });
+});
+
+describe("getWeights", () => {
+  it("should return correct weights for nord_ovest", () => {
+    const weights = getWeights("nord_ovest");
+    expect(weights.icon_d2).toBe(1.4);
+    expect(weights.ecmwf_ifs).toBe(1.3);
+    expect(weights.meteoswiss_icon_seamless).toBe(1.3);
+    expect(weights.italia_meteo_arpae_icon_2i).toBe(1.2);
+    expect(weights.icon_seamless).toBe(1.0);
+    expect(weights.arome_france).toBe(0.9);
+    expect(weights.gfs_seamless).toBe(0.7);
+  });
+
+  it("should return correct weights for alpi", () => {
+    const weights = getWeights("alpi");
+    expect(weights.icon_d2).toBe(1.5);
+    expect(weights.meteoswiss_icon_seamless).toBe(1.4);
+    expect(weights.ecmwf_ifs).toBe(1.2);
+    expect(weights.geosphere_seamless).toBe(1.2);
+    expect(weights.italia_meteo_arpae_icon_2i).toBe(1.1);
+    expect(weights.icon_seamless).toBe(0.9);
+  });
+
+  it("should return empty object for unknown macroarea", () => {
+    const weights = getWeights("unknown_macroarea");
+    expect(weights).toEqual({});
+  });
+
+  it("should normalize model IDs", () => {
+    // getWeights internally calls normalizeModelId on the keys of the hardcoded dict
+    // we can check if expected normalized keys are present
+    const weights = getWeights("sud");
+    expect(weights.ecmwf_ifs).toBe(1.5);
+    expect(weights.ecmwf_aifs025).toBe(1.2);
+    expect(weights.arpege_europe).toBe(1.2);
+    expect(weights.gfs_seamless).toBe(1.0);
+    expect(weights.icon_seamless).toBe(0.9);
+    expect(weights.meteofrance_seamless).toBe(0.9);
   });
 });
