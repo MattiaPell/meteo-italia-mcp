@@ -48,6 +48,8 @@ describe("haversine", () => {
   it("getDistance matches haversine", () => {
     expect(getDistance(45.46, 9.19, 41.89, 12.48)).toBeCloseTo(
       haversine({ lat: 45.46, lon: 9.19 }, { lat: 41.89, lon: 12.48 }),
+    );
+  });
 });
 
 describe("getDistance", () => {
@@ -75,8 +77,6 @@ describe("getDistance", () => {
     const lon1 = 9.19;
     const lat2 = 41.89;
     const lon2 = 12.48;
-    expect(getDistance(lat1, lon1, lat2, lon2)).toBeCloseTo(
-      getDistance(lat2, lon2, lat1, lon1),
-    );
+    expect(getDistance(lat1, lon1, lat2, lon2)).toBeCloseTo(getDistance(lat2, lon2, lat1, lon1));
   });
 });

@@ -4,16 +4,40 @@ import { toToolResult } from "./http.js";
 
 // --- POLLEN FORECAST CONSTANTS & HELPERS ------------------------------------
 
-const POLLEN_CALENDAR: Record<string, { nord: number[]; centro_sud: number[] }> = {
-  ontano: { nord: [1, 2, 3], centro_sud: [12, 1, 2] },
-  betulla: { nord: [3, 4], centro_sud: [2, 3] },
-  cipresso: { nord: [2, 3, 4], centro_sud: [1, 2, 3] },
-  graminacee: { nord: [4, 5, 6], centro_sud: [3, 4, 5] },
-  olivo: { nord: [5, 6], centro_sud: [4, 5] },
-  parietaria: { nord: [3, 4, 5, 6, 7, 8, 9, 10], centro_sud: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
-  artemisia: { nord: [7, 8, 9], centro_sud: [7, 8] },
-  ambrosia: { nord: [8, 9], centro_sud: [8, 9] },
-};
+const POLLEN_CALENDAR = [
+  {
+    pollen: "ontano",
+    nord: new Set([1, 2, 3]),
+    centro_sud: new Set([12, 1, 2]),
+    nordPeak: false,
+    centro_sudPeak: false,
+  },
+  { pollen: "betulla", nord: new Set([3, 4]), centro_sud: new Set([2, 3]), nordPeak: true, centro_sudPeak: true },
+  {
+    pollen: "cipresso",
+    nord: new Set([2, 3, 4]),
+    centro_sud: new Set([1, 2, 3]),
+    nordPeak: false,
+    centro_sudPeak: false,
+  },
+  {
+    pollen: "graminacee",
+    nord: new Set([4, 5, 6]),
+    centro_sud: new Set([3, 4, 5]),
+    nordPeak: false,
+    centro_sudPeak: false,
+  },
+  { pollen: "olivo", nord: new Set([5, 6]), centro_sud: new Set([4, 5]), nordPeak: true, centro_sudPeak: true },
+  {
+    pollen: "parietaria",
+    nord: new Set([3, 4, 5, 6, 7, 8, 9, 10]),
+    centro_sud: new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+    nordPeak: false,
+    centro_sudPeak: false,
+  },
+  { pollen: "artemisia", nord: new Set([7, 8, 9]), centro_sud: new Set([7, 8]), nordPeak: false, centro_sudPeak: true },
+  { pollen: "ambrosia", nord: new Set([8, 9]), centro_sud: new Set([8, 9]), nordPeak: true, centro_sudPeak: true },
+];
 
 const THRESHOLDS: Record<string, { low: number; medium: number; high: number }> = {
   graminacee: { low: 10, medium: 30, high: 50 },
@@ -89,9 +113,12 @@ export async function handlePollenRequest({
   const isNord = latitude > 44.0;
 
   const activeAllergens: any[] = [];
-  for (const [pollen, seasons] of Object.entries(POLLEN_CALENDAR)) {
+  for (let i = 0; i < POLLEN_CALENDAR.length; i++) {
+    const item = POLLEN_CALENDAR[i];
+    const pollen = item.pollen;
+    const seasons = item;
     const activeMonths = isNord ? seasons.nord : seasons.centro_sud;
-    if (!activeMonths.includes(month)) continue;
+    if (!activeMonths.has(month)) continue;
 
     const estimatedLevel = calculateBaseLevel(tempC, relativeHumidity, windSpeedKmH, precipMm, cloudCover);
     const th = THRESHOLDS[pollen] ?? { low: 10, medium: 30, high: 50 };
@@ -101,7 +128,7 @@ export async function handlePollenRequest({
       pollen,
       estimatedLevel,
       risk,
-      isPeak: activeMonths.length <= 2,
+      isPeak: isNord ? seasons.nordPeak : seasons.centro_sudPeak,
     });
   }
 
