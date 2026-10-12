@@ -32,10 +32,11 @@ describe("registerBioclimaticIndices", () => {
       name: "meteo_bioclimatic_indices",
       arguments: { tempC: 20, ...args },
     });
+    const content = res.content as unknown as Array<{ text: string }>;
     if (res.isError) {
-      throw new Error(`MCP error: ${(res.content[0] as any).text}`);
+      throw new Error(`MCP error: ${content[0].text}`);
     }
-    return (res.content[0] as any).text ? JSON.parse((res.content[0] as any).text) : res;
+    return content[0].text ? JSON.parse(content[0].text) : res;
   };
 
   it("calculates Heat Index (Afa) normally", async () => {
