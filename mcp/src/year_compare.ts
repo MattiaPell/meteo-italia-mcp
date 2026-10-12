@@ -39,7 +39,7 @@ export function registerYearCompare(server: McpServer) {
           start_date,
           end_date,
           timezone: "Europe/Rome",
-        })
+        }),
       ]);
 
       if (!currentRes.ok || !lastYearRes.ok) {
