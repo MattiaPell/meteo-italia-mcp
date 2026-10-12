@@ -23,23 +23,24 @@ export function registerYearCompare(server: McpServer) {
 
       const { start_date, end_date } = getLastYearDates(days);
 
-      const currentRes = await apiGet("https://api.open-meteo.com/v1/forecast", {
-        latitude,
-        longitude,
-        daily: ["temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
-        past_days: days,
-        forecast_days: 0,
-        timezone: "Europe/Rome",
-      });
-
-      const lastYearRes = await apiGet("https://archive-api.open-meteo.com/v1/archive", {
-        latitude,
-        longitude,
-        daily: ["temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
-        start_date,
-        end_date,
-        timezone: "Europe/Rome",
-      });
+      const [currentRes, lastYearRes] = await Promise.all([
+        apiGet("https://api.open-meteo.com/v1/forecast", {
+          latitude,
+          longitude,
+          daily: ["temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
+          past_days: days,
+          forecast_days: 0,
+          timezone: "Europe/Rome",
+        }),
+        apiGet("https://archive-api.open-meteo.com/v1/archive", {
+          latitude,
+          longitude,
+          daily: ["temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
+          start_date,
+          end_date,
+          timezone: "Europe/Rome",
+        })
+      ]);
 
       if (!currentRes.ok || !lastYearRes.ok) {
         return toToolResult({
