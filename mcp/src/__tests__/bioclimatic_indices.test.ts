@@ -33,9 +33,9 @@ describe("registerBioclimaticIndices", () => {
       arguments: { tempC: 20, ...args },
     });
     if (res.isError) {
-      throw new Error(`MCP error: ${((res.content as any)[0]).text}`);
+      throw new Error(`MCP error: ${((res.content as any)[0] as any).text}`);
     }
-    return ((res.content as any)[0]).text ? JSON.parse(((res.content as any)[0]).text) : res;
+    return ((res.content as any)[0] as any).text ? JSON.parse(((res.content as any)[0] as any).text) : res;
   };
 
   it("calculates Heat Index (Afa) normally", async () => {
