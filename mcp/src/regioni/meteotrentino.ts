@@ -126,10 +126,23 @@ export async function runBriefArpa(lat: number, lon: number): Promise<any> {
   const list = await getStationsCached();
   if (!list.ok) return { ok: false, agenzia: "Meteotrentino", error: list.error };
   const stations = list.stations;
-  let best: any = null;
+  let bestFastDistSq = Infinity;
+  let bestStation: any = null;
+  const latRad = (lat * Math.PI) / 180;
+  const cosLat = Math.cos(latRad);
   for (const s of stations) {
-    const d = haversine({ lat, lon }, { lat: s.lat, lon: s.lon });
-    if (!best || d < best.distKm) best = { ...s, distKm: Math.round(d * 10) / 10 };
+    const dLat = s.lat - lat;
+    const dLon = (s.lon - lon) * cosLat;
+    const fastDistSq = dLat * dLat + dLon * dLon;
+    if (fastDistSq < bestFastDistSq) {
+      bestFastDistSq = fastDistSq;
+      bestStation = s;
+    }
+  }
+  let best: any = null;
+  if (bestStation) {
+    const d = haversine({ lat, lon }, { lat: bestStation.lat, lon: bestStation.lon });
+    best = { ...bestStation, distKm: Math.round(d * 10) / 10 };
   }
   if (!best) return { ok: false, agenzia: "Meteotrentino", error: "nessuna stazione" };
   const obs = await apiGet(
@@ -191,12 +204,20 @@ export function registerMeteotrentino(server: McpServer) {
             elapsedMs: 0,
           });
         }
+        let bestFastDistSq = Infinity;
+        const latRad = (latitude * Math.PI) / 180;
+        const cosLat = Math.cos(latRad);
         for (const s of stations) {
-          const d = haversine({ lat: latitude, lon: longitude }, { lat: s.lat, lon: s.lon });
-          if (distKm == null || d < distKm) {
-            distKm = d;
+          const dLat = s.lat - latitude;
+          const dLon = (s.lon - longitude) * cosLat;
+          const fastDistSq = dLat * dLat + dLon * dLon;
+          if (fastDistSq < bestFastDistSq) {
+            bestFastDistSq = fastDistSq;
             chosen = s;
           }
+        }
+        if (chosen) {
+          distKm = haversine({ lat: latitude, lon: longitude }, { lat: chosen.lat, lon: chosen.lon });
         }
         stationCode = chosen?.codice;
       }
