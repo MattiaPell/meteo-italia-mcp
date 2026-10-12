@@ -12,23 +12,7 @@ export function calculateStats(errs: number[]) {
   return { n, mae, bias, rmse };
 }
 
-export async function handleMeteoVerification({
-  latitude,
-  longitude,
-  days,
-  models,
-}: {
-  latitude: number;
-  longitude: number;
-  days: number;
-  models: string;
-}) {
-  const start = Date.now();
-  const modelList = models
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
-
+async function fetchVerificationData(latitude: number, longitude: number, days: number, modelList: string[]) {
   const forecastRes = await apiGet("https://api.open-meteo.com/v1/forecast", {
     latitude,
     longitude,
@@ -53,19 +37,10 @@ export async function handleMeteoVerification({
     timezone: "Europe/Rome",
   });
 
-  if (!forecastRes.ok || !archiveRes.ok) {
-    return toToolResult({
-      ok: false,
-      url: "mcp://verification",
-      status: 0,
-      data: null,
-      error: `Dati non disponibili: forecast=${forecastRes.ok}, archive=${archiveRes.ok}`,
-      elapsedMs: Date.now() - start,
-    });
-  }
+  return { forecastRes, archiveRes };
+}
 
-  const fData = forecastRes.data as any;
-  const aData = archiveRes.data as any;
+function processModelVerification(modelList: string[], fData: any, aData: any) {
   const era5Dates: string[] = aData?.daily?.time ?? [];
   const era5Tmax: number[] = aData?.daily?.temperature_2m_max ?? [];
   const era5Tmin: number[] = aData?.daily?.temperature_2m_min ?? [];
@@ -115,6 +90,41 @@ export async function handleMeteoVerification({
       daily: dailyComparison,
     };
   }
+
+  return { verification, era5Dates };
+}
+
+export async function handleMeteoVerification({
+  latitude,
+  longitude,
+  days,
+  models,
+}: {
+  latitude: number;
+  longitude: number;
+  days: number;
+  models: string;
+}) {
+  const start = Date.now();
+  const modelList = models
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  const { forecastRes, archiveRes } = await fetchVerificationData(latitude, longitude, days, modelList);
+
+  if (!forecastRes.ok || !archiveRes.ok) {
+    return toToolResult({
+      ok: false,
+      url: "mcp://verification",
+      status: 0,
+      data: null,
+      error: `Dati non disponibili: forecast=${forecastRes.ok}, archive=${archiveRes.ok}`,
+      elapsedMs: Date.now() - start,
+    });
+  }
+
+  const { verification, era5Dates } = processModelVerification(modelList, forecastRes.data, archiveRes.data);
 
   return toToolResult({
     ok: true,
