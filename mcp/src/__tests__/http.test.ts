@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { apiGet, validateApiData, getMetrics } from "../http.js";
+import { apiGet, validateApiData, getMetrics, buildUrl } from "../http.js";
 import { MeteoError } from "../errors.js";
 import { z } from "zod";
 
@@ -84,5 +84,50 @@ describe("validateApiData", () => {
       "Src",
     );
     expect(data.results?.[0].name).toBe("Roma");
+  });
+});
+
+describe("buildUrl", () => {
+  it("appends basic string, number, and boolean parameters", () => {
+    const url = buildUrl("https://example.com/api", {
+      q: "rome",
+      limit: 10,
+      active: true,
+    });
+    expect(url).toBe("https://example.com/api?q=rome&limit=10&active=true");
+  });
+
+  it("ignores undefined and empty string values", () => {
+    const url = buildUrl("https://example.com/api", {
+      q: "rome",
+      empty: "",
+      missing: undefined,
+      valid: "yes",
+    });
+    expect(url).toBe("https://example.com/api?q=rome&valid=yes");
+  });
+
+  it("handles array parameters by appending multiple times", () => {
+    const url = buildUrl("https://example.com/api", {
+      models: ["ecmwf", "icon"],
+      ids: [1, 2, 3],
+    });
+    expect(url).toBe("https://example.com/api?models=ecmwf&models=icon&ids=1&ids=2&ids=3");
+  });
+
+  it("filters out undefined and empty strings from arrays", () => {
+    const url = buildUrl("https://example.com/api", {
+      models: ["ecmwf", "", undefined, "icon"],
+    });
+    // Array values that are undefined or empty string are ignored
+    expect(url).toBe("https://example.com/api?models=ecmwf&models=icon");
+  });
+
+  it("properly URL-encodes keys and values", () => {
+    const url = buildUrl("https://example.com/api", {
+      "foo bar": "baz qux",
+      special: "a&b=c?",
+    });
+    expect(url).toBe("https://example.com/api?foo+bar=baz+qux&special=a%26b%3Dc%3F");
   });
 });
