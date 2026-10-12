@@ -107,11 +107,25 @@ export function parseMeteoTrentinoObs(xml: string): MeteoTrentinoObs {
   }
 }
 
+let cachedStations: MeteoTrentinoStation[] | null = null;
+let cachedStationsTime = 0;
+
+async function getStationsCached(): Promise<{ ok: boolean; error?: string; stations: MeteoTrentinoStation[] }> {
+  if (cachedStations && Date.now() - cachedStationsTime < 3600000) {
+    return { ok: true, stations: cachedStations };
+  }
+  const list = await apiGet("https://dati.meteotrentino.it/service.asmx/listaStazioni", {}, { acceptText: true });
+  if (!list.ok) return { ok: false, error: list.error, stations: [] };
+  cachedStations = parseMeteoTrentinoStations(String(list.data));
+  cachedStationsTime = Date.now();
+  return { ok: true, stations: cachedStations };
+}
+
 // --- Adapter per brief.ts (Trentino) ----------------------------------------
 export async function runBriefArpa(lat: number, lon: number): Promise<any> {
-  const list = await apiGet("https://dati.meteotrentino.it/service.asmx/listaStazioni", {}, { acceptText: true });
+  const list = await getStationsCached();
   if (!list.ok) return { ok: false, agenzia: "Meteotrentino", error: list.error };
-  const stations = parseMeteoTrentinoStations(String(list.data));
+  const stations = list.stations;
   let best: any = null;
   for (const s of stations) {
     const d = haversine({ lat, lon }, { lat: s.lat, lon: s.lon });
@@ -155,13 +169,22 @@ export function registerMeteotrentino(server: McpServer) {
       let chosen: MeteoTrentinoStation | null = null;
       let distKm: number | null = null;
       if (!stationCode) {
-        const list = await apiGet("https://dati.meteotrentino.it/service.asmx/listaStazioni", {}, { acceptText: true });
-        if (!list.ok) return toToolResult(list);
-        const stations = parseMeteoTrentinoStations(String(list.data));
+        const list = await getStationsCached();
+        if (!list.ok) {
+          return toToolResult({
+            ok: false,
+            url: "https://dati.meteotrentino.it/service.asmx/listaStazioni",
+            status: 500,
+            data: null,
+            error: list.error || "Errore sconosciuto",
+            elapsedMs: 0,
+          });
+        }
+        const stations = list.stations;
         if (latitude === undefined || longitude === undefined) {
           return toToolResult({
             ok: false,
-            url: list.url,
+            url: "https://dati.meteotrentino.it/service.asmx/listaStazioni",
             status: 200,
             data: null,
             error: "Passa codice stazione oppure latitude+longitude. Stazioni attive: " + stations.length,
