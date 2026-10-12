@@ -80,6 +80,79 @@ export async function handleOpenMeteoGeocode({ name, count, language }: any) {
   return toToolResult(enriched);
 }
 
+const CORE_HOURLY = [
+  "temperature_2m",
+  "precipitation",
+  "wind_speed_10m",
+  "wind_gusts_10m",
+  "weather_code",
+  "cloud_cover",
+  "precipitation_probability",
+  "cape",
+];
+
+const CORE_DAILY = [
+  "temperature_2m_max",
+  "temperature_2m_min",
+  "apparent_temperature_max",
+  "apparent_temperature_min",
+  "precipitation_sum",
+  "snowfall_sum",
+  "precipitation_probability_max",
+  "wind_speed_10m_max",
+  "wind_gusts_10m_max",
+  "weather_code",
+  "uv_index_max",
+  "et0_fao_evapotranspiration",
+];
+
+const LEVEL_3_HOURLY = [
+  "temperature_2m",
+  "precipitation",
+  "weather_code",
+  "cape",
+  "wind_gusts_10m",
+  "wind_speed_80m",
+  "wind_direction_80m",
+  "wind_speed_120m",
+  "wind_direction_120m",
+  "shortwave_radiation",
+  "direct_radiation",
+  "diffuse_radiation",
+  "direct_normal_irradiance",
+  "terrestrial_radiation",
+  "soil_temperature_6cm",
+  "soil_temperature_18cm",
+  "soil_moisture_1_to_3cm",
+  "wet_bulb_temperature_2m",
+  "geopotential_height_1000hPa",
+  "geopotential_height_925hPa",
+  "geopotential_height_700hPa",
+];
+
+const LEVEL_2_HOURLY = [
+  ...CORE_HOURLY,
+  "temperature_850hPa",
+  "temperature_500hPa",
+  "lifted_index",
+  "convective_inhibition",
+  "freezing_level_height",
+  "visibility",
+  "boundary_layer_height",
+];
+
+function checkTriggers(l1Data: any): boolean {
+  const codes = (l1Data?.hourly?.weather_code ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
+  const capes = (l1Data?.hourly?.cape ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
+  const precs = (l1Data?.hourly?.precipitation ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
+  const winds = (l1Data?.hourly?.wind_speed_10m ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
+  return (
+    codes.some((c: number) => c >= 80 && c <= 99) ||
+    capes.some((c: number) => c > 500) ||
+    precs.some((p: number) => p > 10) ||
+    winds.some((w: number) => w > 50)
+  );
+}
 export async function handleOpenMeteoForecast({
   latitude,
   longitude,
@@ -93,37 +166,13 @@ export async function handleOpenMeteoForecast({
   level,
 }: any) {
   const chosenModels = models ? csv(models).map(normalizeModelId) : undefined;
-  const coreHourly = [
-    "temperature_2m",
-    "precipitation",
-    "wind_speed_10m",
-    "wind_gusts_10m",
-    "weather_code",
-    "cloud_cover",
-    "precipitation_probability",
-    "cape",
-  ];
-  const coreDaily = [
-    "temperature_2m_max",
-    "temperature_2m_min",
-    "apparent_temperature_max",
-    "apparent_temperature_min",
-    "precipitation_sum",
-    "snowfall_sum",
-    "precipitation_probability_max",
-    "wind_speed_10m_max",
-    "wind_gusts_10m_max",
-    "weather_code",
-    "uv_index_max",
-    "et0_fao_evapotranspiration",
-  ];
 
   const l1 = await apiGet("https://api.open-meteo.com/v1/forecast", {
     latitude,
     longitude,
     models: chosenModels,
-    hourly: hourly ? csv(hourly) : coreHourly,
-    daily: daily ? csv(daily) : coreDaily,
+    hourly: hourly ? csv(hourly) : CORE_HOURLY,
+    daily: daily ? csv(daily) : CORE_DAILY,
     current: current ? csv(current) : undefined,
     timezone,
     past_days: past_days ?? 0,
@@ -132,15 +181,7 @@ export async function handleOpenMeteoForecast({
   if (!l1.ok) return toToolResult(l1);
 
   const l1Data = l1.data as any;
-  const codes = (l1Data?.hourly?.weather_code ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
-  const capes = (l1Data?.hourly?.cape ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
-  const precs = (l1Data?.hourly?.precipitation ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
-  const winds = (l1Data?.hourly?.wind_speed_10m ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
-  const triggered =
-    codes.some((c: number) => c >= 80 && c <= 99) ||
-    capes.some((c: number) => c > 500) ||
-    precs.some((p: number) => p > 10) ||
-    winds.some((w: number) => w > 50);
+  const triggered = checkTriggers(l1Data);
 
   let levelUsed: "1" | "2" | "3" = "1";
   let finalRes = l1;
@@ -150,32 +191,8 @@ export async function handleOpenMeteoForecast({
       latitude,
       longitude,
       models: chosenModels,
-      hourly: hourly
-        ? csv(hourly)
-        : [
-            "temperature_2m",
-            "precipitation",
-            "weather_code",
-            "cape",
-            "wind_gusts_10m",
-            "wind_speed_80m",
-            "wind_direction_80m",
-            "wind_speed_120m",
-            "wind_direction_120m",
-            "shortwave_radiation",
-            "direct_radiation",
-            "diffuse_radiation",
-            "direct_normal_irradiance",
-            "terrestrial_radiation",
-            "soil_temperature_6cm",
-            "soil_temperature_18cm",
-            "soil_moisture_1_to_3cm",
-            "wet_bulb_temperature_2m",
-            "geopotential_height_1000hPa",
-            "geopotential_height_925hPa",
-            "geopotential_height_700hPa",
-          ],
-      daily: daily ? csv(daily) : coreDaily,
+      hourly: hourly ? csv(hourly) : LEVEL_3_HOURLY,
+      daily: daily ? csv(daily) : CORE_DAILY,
       current: current ? csv(current) : undefined,
       timezone,
       past_days: past_days ?? 0,
@@ -187,19 +204,8 @@ export async function handleOpenMeteoForecast({
       latitude,
       longitude,
       models: chosenModels,
-      hourly: hourly
-        ? csv(hourly)
-        : [
-            ...coreHourly,
-            "temperature_850hPa",
-            "temperature_500hPa",
-            "lifted_index",
-            "convective_inhibition",
-            "freezing_level_height",
-            "visibility",
-            "boundary_layer_height",
-          ],
-      daily: daily ? csv(daily) : coreDaily,
+      hourly: hourly ? csv(hourly) : LEVEL_2_HOURLY,
+      daily: daily ? csv(daily) : CORE_DAILY,
       current: current ? csv(current) : undefined,
       timezone,
       past_days: 7,
