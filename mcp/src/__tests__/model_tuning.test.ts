@@ -220,5 +220,3 @@ describe("getUhiCorrection", () => {
         expect(res!.deltaTMin).toBe(2.0);
       });
     });
-  });
-});
