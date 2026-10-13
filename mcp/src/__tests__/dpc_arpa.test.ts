@@ -300,6 +300,12 @@ describe("parseMeteoTrentinoStations", () => {
     </ArrayOfAnagrafica>`;
     expect(parseMeteoTrentinoStations(xml)).toHaveLength(0);
   });
+
+  it("returns empty array on parser exception (invalid/null XML)", () => {
+    // using malformed XML instead of null to properly test catch block for parsing exceptions
+    const s = parseMeteoTrentinoStations("<invalid><unclosed>");
+    expect(s).toEqual([]);
+  });
 });
 
 describe("parseMeteoTrentinoObs", () => {
@@ -336,6 +342,18 @@ describe("parseMeteoTrentinoObs", () => {
     expect(o.tmin).toBe(10);
     expect(o.lastTempC).toBeNull();
     expect(o.precipSumMm).toBeNull();
+  });
+
+  it("returns null fields on parser exception (invalid/null XML)", () => {
+    const o = parseMeteoTrentinoObs("<invalid><unclosed>");
+    expect(o).toEqual({
+      tmin: null,
+      tmax: null,
+      rainMm: null,
+      lastTempC: null,
+      lastTempAt: null,
+      precipSumMm: null,
+    });
   });
 });
 
