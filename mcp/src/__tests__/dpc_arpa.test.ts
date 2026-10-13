@@ -7,7 +7,7 @@ import {
   normalizeName,
   type BulletinZone,
 } from "../dpc.js";
-import { parseArpavIdroXml } from "../regioni/arpav.js";
+import { parseArpavIdroXml, parseArpavIdroStation } from "../regioni/arpav.js";
 import { parseMeteoTrentinoStations, parseMeteoTrentinoObs } from "../regioni/meteotrentino.js";
 import { parseMetarStation } from "../italian_sources.js";
 
@@ -223,6 +223,42 @@ describe("extractZoneRegionMap", () => {
   it("returns empty map if no matches are found", () => {
     const map = extractZoneRegionMap("<p>No regions here</p>");
     expect(map.size).toBe(0);
+  });
+});
+
+
+describe("parseArpavIdroStation", () => {
+  it("returns null if there are no <DATI> blocks", () => {
+    const xml = `<STAZIONE><IDSTAZ>1</IDSTAZ><NOME>Empty</NOME></STAZIONE>`;
+    expect(parseArpavIdroStation(xml)).toBeNull();
+  });
+
+  it("falls back to 0 for missing or invalid X/Y, and null for QUOTA", () => {
+    const xml = `<STAZIONE><IDSTAZ>2</IDSTAZ><NOME>NoCoords</NOME><X>invalid</X><DATI ISTANTE="202607211200"><VM>1.5</VM></DATI></STAZIONE>`;
+    const s = parseArpavIdroStation(xml);
+    expect(s?.lat).toBe(0);
+    expect(s?.lon).toBe(0);
+    expect(s?.quota).toBeNull();
+  });
+
+  it("handles exactly 1 <DATI> block correctly", () => {
+    const xml = `<STAZIONE><IDSTAZ>3</IDSTAZ><NOME>OneBlock</NOME><X>11</X><Y>45</Y><DATI ISTANTE="202607211200"><VM>2.5</VM></DATI></STAZIONE>`;
+    const s = parseArpavIdroStation(xml);
+    expect(s?.livelloM).toBe(2.5);
+    expect(s?.livello6hFaM).toBe(2.5);
+    expect(s?.trend).toBe("stabile");
+  });
+
+  it("sets trend to 'discesa' when delta < 0", () => {
+    const dati = [
+      `<DATI ISTANTE="202607211200"><VM>3.5</VM></DATI>`, // ref6h (points[0] when length <= 36)
+      `<DATI ISTANTE="202607211300"><VM>3.0</VM></DATI>`, // last (points[points.length - 1])
+    ].join("");
+    const xml = `<STAZIONE><IDSTAZ>4</IDSTAZ><NOME>Discesa</NOME><X>11</X><Y>45</Y>${dati}</STAZIONE>`;
+    const s = parseArpavIdroStation(xml);
+    expect(s?.livelloM).toBe(3.0);
+    expect(s?.livello6hFaM).toBe(3.5);
+    expect(s?.trend).toBe("discesa");
   });
 });
 
