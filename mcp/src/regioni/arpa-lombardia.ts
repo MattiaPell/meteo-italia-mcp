@@ -2,6 +2,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "../http.js";
 import { haversine } from "../geo.js";
+import type { ArpaBriefResult } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // ARPA Lombardia — osservazioni stazioni meteo (Socrata Open Data API)
@@ -32,24 +33,37 @@ export interface ArpaLombardiaObs {
   stato: string;
 }
 
+/** Riga grezza dell'anagrafica stazioni (Socrata): tutti i valori sono stringhe. */
+export interface LombardiaStationRow {
+  idsensore?: string;
+  tipologia?: string;
+  unit_dimisura?: string;
+  idstazione?: string;
+  nomestazione?: string;
+  quota?: string;
+  provincia?: string;
+  lat?: string;
+  lng?: string;
+}
+
 /** Parse station from Socrata row. */
-export function parseStation(row: any): ArpaLombardiaStation {
+export function parseStation(row: LombardiaStationRow): ArpaLombardiaStation {
   return {
     idsensore: row.idsensore ?? "",
     tipologia: row.tipologia ?? "",
     unitaMisura: row.unit_dimisura ?? "",
     idstazione: row.idstazione ?? "",
     nomeStazione: row.nomestazione ?? "",
-    quota: parseFloat(row.quota) || null,
+    quota: parseFloat(row.quota ?? "") || null,
     provincia: row.provincia ?? "",
-    lat: parseFloat(row.lat) || 0,
-    lon: parseFloat(row.lng) || 0,
+    lat: parseFloat(row.lat ?? "") || 0,
+    lon: parseFloat(row.lng ?? "") || 0,
   };
 }
 
-let cachedStazioniPromise: Promise<any[]> | null = null;
+let cachedStazioniPromise: Promise<LombardiaStationRow[]> | null = null;
 
-async function getStationsCached(): Promise<any[]> {
+async function getStationsCached(): Promise<LombardiaStationRow[]> {
   if (cachedStazioniPromise !== null) {
     return cachedStazioniPromise;
   }
@@ -58,7 +72,7 @@ async function getStationsCached(): Promise<any[]> {
     try {
       const stazioniR = await apiGet("https://www.dati.lombardia.it/resource/nf78-nj6b.json", { $limit: "200" });
       if (stazioniR.ok) {
-        return (stazioniR.data as any[]) ?? [];
+        return (stazioniR.data as LombardiaStationRow[]) ?? [];
       } else {
         cachedStazioniPromise = null;
         return [];
@@ -73,7 +87,18 @@ async function getStationsCached(): Promise<any[]> {
 }
 
 // --- Adapter per brief.ts (Lombardia) --------------------------------------
-export async function runBriefArpa(lat: number, lon: number): Promise<any> {
+interface NearestStation {
+  idsensore: string | undefined;
+  nome: string | undefined;
+  provincia: string | undefined;
+  tipologia: string | undefined;
+  quota: string | undefined;
+  lat: number;
+  lon: number;
+  distKm: number;
+}
+
+export async function runBriefArpa(lat: number, lon: number): Promise<ArpaBriefResult> {
   const [stazioni, obsR] = await Promise.allSettled([
     getStationsCached(),
     apiGet("https://www.dati.lombardia.it/resource/647i-nhxk.json", {
@@ -82,11 +107,11 @@ export async function runBriefArpa(lat: number, lon: number): Promise<any> {
       $limit: "50",
     }),
   ]);
-  const stazioniData: any[] = stazioni.status === "fulfilled" ? stazioni.value : [];
-  let bestObs: any = null;
+  const stazioniData: LombardiaStationRow[] = stazioni.status === "fulfilled" ? stazioni.value : [];
+  let bestObs: NearestStation | null = null;
   for (const s of stazioniData) {
-    const slat = parseFloat(s.lat) || 0;
-    const slon = parseFloat(s.lng) || 0;
+    const slat = parseFloat(s.lat ?? "") || 0;
+    const slon = parseFloat(s.lng ?? "") || 0;
     if (!slat || !slon) continue;
     const d = haversine({ lat, lon }, { lat: slat, lon: slon });
     if (!bestObs || d < bestObs.distKm)
@@ -101,15 +126,15 @@ export async function runBriefArpa(lat: number, lon: number): Promise<any> {
         distKm: Math.round(d * 10) / 10,
       };
   }
-  const osservazioni: any[] =
+  const osservazioni: ArpaLombardiaObs[] =
     obsR.status === "fulfilled" && obsR.value.ok
-      ? ((obsR.value.data as any[]) ?? []).filter((o: any) => o.valore !== "-999")
+      ? ((obsR.value.data as ArpaLombardiaObs[]) ?? []).filter((o) => o.valore !== "-999")
       : [];
   return {
     ok: true,
     agenzia: "ARPA Lombardia (dati.lombardia.it)",
     stazioneVicina: bestObs,
-    osservazioniRecenti: osservazioni.slice(0, 10).map((o: any) => ({
+    osservazioniRecenti: osservazioni.slice(0, 10).map((o) => ({
       data: o.data,
       valore: o.valore,
       stato: o.stato,
@@ -135,7 +160,7 @@ export async function handleArpaLombardiaStazioni({
   const r = await apiGet(STAZIONI_URL, params);
   if (!r.ok) return toToolResult(r);
 
-  const rows = (r.data as any[]) ?? [];
+  const rows = (r.data as LombardiaStationRow[]) ?? [];
   const stations = rows.map(parseStation);
 
   return toToolResult({
@@ -166,7 +191,7 @@ export async function handleArpaLombardiaOsservazioni({
   const stationR = await apiGet(STAZIONI_URL, stationParams);
   if (!stationR.ok) return toToolResult(stationR);
 
-  const stations = ((stationR.data as any[]) ?? []).map(parseStation);
+  const stations = ((stationR.data as LombardiaStationRow[]) ?? []).map(parseStation);
   if (!stations.length) {
     return toToolResult({
       ok: false,
@@ -194,7 +219,7 @@ export async function handleArpaLombardiaOsservazioni({
   const obsR = await apiGet(OSSERVAZIONI_URL, obsParams);
   if (!obsR.ok) return toToolResult(obsR);
 
-  const obs = ((obsR.data as any[]) ?? []) as ArpaLombardiaObs[];
+  const obs = (obsR.data as ArpaLombardiaObs[]) ?? [];
 
   // Join with station info
   const stationMap = new Map(stations.map((s) => [s.idsensore, s]));
