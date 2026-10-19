@@ -1,7 +1,7 @@
 # meteo-italia-mcp-server
 
 MCP server (TypeScript) + pagina web di debug che wrappa tutte le API esterne
-usate dalla skill `meteo-italia`: Open-Meteo (forecast, geocoding, archive,
+esposte dal server `meteo-italia`: Open-Meteo (forecast, geocoding, archive,
 marine, air-quality, ensemble, flood/GloFAS, seasonal), reti ARPA regionali
 (Veneto, Trentino, Emilia-Romagna, FVG, Marche, Lombardia, Piemonte),
 Protezione Civile (allerte/radar), CheckWX METAR/TAF, AviationWeather,
@@ -34,7 +34,7 @@ METEO_MCP_DEBUG_PORT=3000 node dist/index.js
 
 La pagina elenca tutti i servizi, permette di inserire i parametri e mostra
 richiesta (URL), risposta JSON e tempo di risposta / errori. Utile per validare
-i nomi dei modelli Open-Meteo e debuggare le chiamate prima di usarle nella skill.
+i nomi dei modelli Open-Meteo e debuggare le chiamate prima di usarle in un client.
 
 **CheckWX:** il tool `checkwx_metar_taf` richiede la variabile d'ambiente
 `CHECKWX_API_KEY`. Senza key, il tool ritorna un errore esplicito e puoi usare

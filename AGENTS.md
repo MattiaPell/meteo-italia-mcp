@@ -1,10 +1,10 @@
-# AGENTS.md — Sviluppo meteo-italia-skill
+# AGENTS.md — Sviluppo meteo-italia-mcp
 
 ## Identità
 
-Progetto: **meteo-italia-skill** — Analisi meteo multi-modello Italia.
+Progetto: **meteo-italia-mcp** — Analisi meteo multi-modello Italia.
 Stack: TypeScript MCP server (Open-Meteo, DPC, ARPA, CheckWX, DMI, floods.it).
-Skill per agent AI con filosofia **MCP-First**.
+Le istruzioni per l'agente vivono nel server (`instructions`, prompt MCP), non in file skill.
 
 ## Regole Sviluppo
 
@@ -17,9 +17,8 @@ Tutta la comunicazione con l'agente DEVE usare **caveman mode** (stile compresso
 
 ### 2. MCP-First
 
-- NON caricare file `references/` in contesto.
 - Usa tool MCP dedicati per ogni dato meteo.
-- Solo se MCP non disponibile → fallback a stima interna o file reference minimi.
+- Se MCP non disponibile → stima interna dichiarata come tale.
 
 ### 3. Codice
 
@@ -27,7 +26,7 @@ Tutta la comunicazione con l'agente DEVE usare **caveman mode** (stile compresso
 - **Error handling**: usa `MeteoError` per errori strutturati. Mai catch vuoti.
 - **Niente over-engineering**: fix minimale, niente refactor mentre si fixa.
 - **Duplicazione > astrazione prematura**.
-- **Sync documentazione**: ogni modifica ai tool MCP (nuovo tool, rename, cambio firma, cambio comportamento) DEVE essere riflessa in `SKILL.md` (tool mapping table + breaking changes) e `README.md` (tool table). Nessuna eccezione.
+- **Sync documentazione**: ogni modifica ai tool MCP (nuovo tool, rename, cambio firma, cambio comportamento) DEVE essere riflessa in `README.md` (tool table + breaking changes) e, se cambia il flusso d'uso, in `mcp/src/instructions.ts`. Nessuna eccezione.
 
 ### 4. Git
 
@@ -50,9 +49,7 @@ mcp/           — MCP server TypeScript (npm, tsc, node dist/index.js)
   src/          — sorgenti
     __tests__/  — test
   dist/         — build (gitignored)
-references/    — placeholder minimi (non caricare in contesto)
 .omo/          — configurazione OpenCode
-SKILL.md       — skill definition principale
 AGENTS.md      — questo file
 ```
 

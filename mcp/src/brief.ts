@@ -556,11 +556,35 @@ function runBriefCore({
       ensemble,
       arpaRegionale: arpa,
       divergenze,
+      confidenza: computeConfidence({ nwp: nwp.status, allerte: allerte.status, metar: metar.status }, divergenze),
       errori,
-      nota: "Confidence ALTA se nwp+allerte+metar ok e divergenze vuote; MEDIA se 1 fonte manca o divergenze presenti; segnalare sempre le divergenze nel report.",
     };
     return { ok: nwp.status === "ok", data, elapsedMs: Date.now() - start };
   })();
+}
+
+export interface Confidenza {
+  livello: "alta" | "media" | "bassa";
+  motivi: string[];
+}
+
+/**
+ * Confidenza calcolata dal server: le fonti core sono NWP, allerte e METAR.
+ * Tutte ok e nessuna divergenza → alta; una fonte core mancante o divergenze
+ * presenti → media; NWP assente o due fonti core mancanti → bassa.
+ */
+export function computeConfidence(
+  fonti: { nwp: string; allerte: string; metar: string },
+  divergenze: string[],
+): Confidenza {
+  const motivi: string[] = [];
+  const mancanti = (Object.entries(fonti) as Array<[string, string]>).filter(([, st]) => st !== "ok").map(([k]) => k);
+  for (const k of mancanti) motivi.push(`fonte ${k} non disponibile`);
+  if (divergenze.length) motivi.push(`${divergenze.length} divergenza/e tra fonti`);
+  let livello: Confidenza["livello"] = "alta";
+  if (mancanti.length || divergenze.length) livello = "media";
+  if (fonti.nwp !== "ok" || mancanti.length >= 2) livello = "bassa";
+  return { livello, motivi };
 }
 
 export function registerBrief(server: McpServer) {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { runBrief, registerBrief } from "../brief.js";
+import { computeConfidence, runBrief, registerBrief } from "../brief.js";
 import { MeteoError } from "../errors.js";
 
 /**
@@ -225,6 +225,7 @@ describe("runBrief — tutte le fonti ok", () => {
     expect(r.data.nwp.giorni).toHaveLength(1);
     expect(r.data.nwp.giorni[0].tmaxMedia).toBe(30);
     expect(r.data.nwp.giorni[0].tmaxSpread).toBe(0);
+    expect(r.data.confidenza).toEqual({ livello: "alta", motivi: [] });
     expect(r.data.nwp.macroarea).toBe("nord_ovest");
     expect(r.data.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
     expect(r.data.nwp.giorni[0].tmaxPesata).toBe(30);
@@ -459,5 +460,26 @@ describe("meteo_brief e2e (MCP InMemoryTransport)", () => {
     expect(sc.data.fontiOk).toBe(5);
     expect(sc.data.arpaRegionale.ok).toBe(false);
     expect(sc.data.arpaRegionale.nonCoperto).toContain("Sicilia");
+  });
+});
+
+describe("computeConfidence", () => {
+  const ok = { nwp: "ok", allerte: "ok", metar: "ok" };
+  it("alta: tutto ok, nessuna divergenza", () => {
+    expect(computeConfidence(ok, [])).toEqual({ livello: "alta", motivi: [] });
+  });
+  it("media: divergenze presenti", () => {
+    const c = computeConfidence(ok, ["spread T"]);
+    expect(c.livello).toBe("media");
+    expect(c.motivi).toEqual(["1 divergenza/e tra fonti"]);
+  });
+  it("media: una fonte core mancante", () => {
+    const c = computeConfidence({ ...ok, metar: "errore" }, []);
+    expect(c.livello).toBe("media");
+    expect(c.motivi).toEqual(["fonte metar non disponibile"]);
+  });
+  it("bassa: NWP assente o due fonti core mancanti", () => {
+    expect(computeConfidence({ ...ok, nwp: "errore" }, []).livello).toBe("bassa");
+    expect(computeConfidence({ nwp: "ok", allerte: "errore", metar: "errore" }, []).livello).toBe("bassa");
   });
 });
