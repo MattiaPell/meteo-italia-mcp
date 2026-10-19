@@ -240,34 +240,34 @@ describe("runBrief — tutte le fonti ok", () => {
   it("aggrega 6 fonti, consensus NWP, allerta comune, nessuna divergenza", async () => {
     const r = await runBrief(PARAM_MILANO);
     expect(r.ok).toBe(true);
-    expect(r.data.fontiInterrogate).toBe(6);
-    expect(r.data.fontiOk).toBe(6);
-    expect(r.data.nwp.status).toBe("ok");
-    expect(r.data.nwp.modelli).toEqual(["ecmwf_ifs025", "icon_seamless"]);
-    expect(r.data.nwp.giorni).toHaveLength(1);
-    expect(r.data.nwp.giorni[0].tmaxMedia).toBe(30);
-    expect(r.data.nwp.giorni[0].tmaxSpread).toBe(0);
-    expect(r.data.confidenza).toEqual({ livello: "alta", motivi: [] });
-    expect(r.data.nwp.macroarea).toBe("nord_ovest");
-    expect(r.data.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
-    expect(r.data.nwp.giorni[0].tmaxPesata).toBe(30);
-    expect(r.data.allerte.matching).toBe("comune");
-    expect(r.data.allerte.comuneTrovato).toBe(true);
+    expect(r.data!.fontiInterrogate).toBe(6);
+    expect(r.data!.fontiOk).toBe(6);
+    expect(r.data!.nwp.status).toBe("ok");
+    expect(r.data!.nwp.modelli).toEqual(["ecmwf_ifs025", "icon_seamless"]);
+    expect(r.data!.nwp.giorni).toHaveLength(1);
+    expect(r.data!.nwp.giorni![0].tmaxMedia).toBe(30);
+    expect(r.data!.nwp.giorni![0].tmaxSpread).toBe(0);
+    expect(r.data!.confidenza).toEqual({ livello: "alta", motivi: [] });
+    expect(r.data!.nwp.macroarea).toBe("nord_ovest");
+    expect(r.data!.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
+    expect(r.data!.nwp.giorni![0].tmaxPesata).toBe(30);
+    expect(r.data!.allerte.matching).toBe("comune");
+    expect(r.data!.allerte.comuneTrovato).toBe(true);
     // livelli tutti 0 nel caso pulito: nessuna allerta, nessuna divergenza
-    expect(r.data.allerte.allertaMaxOggi).toBe(0);
-    expect(r.data.radar.status).toBe("ok");
-    expect(r.data.metar.status).toBe("ok");
-    expect(r.data.metar.stazioni[0].icao).toBe("LIML");
-    expect(r.data.metar.stazioni[0].distKm).not.toBeNull();
-    expect(r.data.ensemble.status).toBe("ok");
-    expect(r.data.ensemble.tempSpreadMaxC).toBe(2);
-    expect(r.data.ensemble.membri).toBe(2);
-    expect(r.data.ensemble.probabilita).toEqual([
+    expect(r.data!.allerte.allertaMaxOggi).toBe(0);
+    expect(r.data!.radar.status).toBe("ok");
+    expect(r.data!.metar.status).toBe("ok");
+    expect(r.data!.metar.stazioni![0].icao).toBe("LIML");
+    expect(r.data!.metar.stazioni![0].distKm).not.toBeNull();
+    expect(r.data!.ensemble.status).toBe("ok");
+    expect(r.data!.ensemble.tempSpreadMaxC).toBe(2);
+    expect(r.data!.ensemble.membri).toBe(2);
+    expect(r.data!.ensemble.probabilita).toEqual([
       { data: "2026-08-29", pPioggia1mm: 0, pPioggia10mm: 0, pGelo: 0, pCaldoEstremo: 0, pRaffica60: 50 },
     ]);
-    expect(r.data.arpaRegionale.ok).toBe(true);
-    expect(r.data.divergenze).toEqual([]);
-    expect(r.data.errori).toEqual([]);
+    expect(r.data!.arpaRegionale.ok).toBe(true);
+    expect(r.data!.divergenze).toEqual([]);
+    expect(r.data!.errori).toEqual([]);
   });
 });
 
@@ -276,9 +276,9 @@ describe("runBrief — fonti in errore", () => {
     setFixtures({ nwpErrore: true });
     const r = await runBrief(PARAM_MILANO);
     expect(r.ok).toBe(false);
-    expect(r.data.nwp.status).toBe("errore");
-    expect(r.data.fontiOk).toBe(5);
-    expect(r.data.errori).toEqual(["Open-Meteo: HTTP 503: boom"]);
+    expect(r.data!.nwp.status).toBe("errore");
+    expect(r.data!.fontiOk).toBe(5);
+    expect(r.data!.errori).toEqual(["Open-Meteo: HTTP 503: boom"]);
   });
 
   it("bollettino DPC non disponibile → allerte errore + errore accumulato", async () => {
@@ -295,26 +295,26 @@ describe("runBrief — fonti in errore", () => {
     });
     const r = await runBrief(PARAM_MILANO);
     expect(r.ok).toBe(true);
-    expect(r.data.allerte.status).toBe("errore");
-    expect(r.data.fontiOk).toBe(5);
-    expect(r.data.errori).toContain("Allerte DPC non disponibili");
+    expect(r.data!.allerte.status).toBe("errore");
+    expect(r.data!.fontiOk).toBe(5);
+    expect(r.data!.errori).toContain("Allerte DPC non disponibili");
   });
 
   it("METAR in timeout (MeteoError) → fonte errore, brief prosegue", async () => {
     setFixtures({ metar: "throw" });
     const r = await runBrief(PARAM_MILANO);
     expect(r.ok).toBe(true);
-    expect(r.data.metar.status).toBe("errore");
-    expect(r.data.fontiOk).toBe(5);
+    expect(r.data!.metar.status).toBe("errore");
+    expect(r.data!.fontiOk).toBe(5);
   });
 
   it("radar e ARPA rifiutati → fontiOk calate senza crash", async () => {
     setFixtures({ radarThrow: true, arpaThrow: true });
     const r = await runBrief(PARAM_MILANO);
     expect(r.ok).toBe(true);
-    expect(r.data.radar.status).toBe("errore");
-    expect(r.data.arpaRegionale.status).toBe("errore");
-    expect(r.data.fontiOk).toBe(4);
+    expect(r.data!.radar.status).toBe("errore");
+    expect(r.data!.arpaRegionale.status).toBe("errore");
+    expect(r.data!.fontiOk).toBe(4);
   });
 });
 
@@ -328,7 +328,7 @@ describe("runBrief — calcolo divergenze", () => {
     });
     const r = await runBrief(PARAM_MILANO);
     expect(r.ok).toBe(true);
-    const d = r.data.divergenze;
+    const d = r.data!.divergenze;
     expect(d.some((x: string) => x.includes("Modelli NWP divergono su T max oggi: spread 5°C"))).toBe(true);
     expect(d.some((x: string) => x.includes("METAR LIML") && x.includes("scarta di 3°C"))).toBe(true);
     expect(d.some((x: string) => x.includes("METAR LIMC: visibilità <2000m"))).toBe(true);
@@ -342,23 +342,23 @@ describe("runBrief — matching allerte comune → regione → nazionale", () =>
   it("comune non nel bollettino ma regione sì → matching 'regione' con nota", async () => {
     setFixtures({ allerte: ALLETE_OK(["Padova"]) });
     const r = await runBrief(PARAM_MILANO);
-    expect(r.data.allerte.matching).toBe("regione");
-    expect(r.data.allerte.nota).toContain("regione 'Veneto'");
-    expect(r.data.allerte.allertaMaxOggi).toBe(1);
+    expect(r.data!.allerte.matching).toBe("regione");
+    expect(r.data!.allerte.nota).toContain("regione 'Veneto'");
+    expect(r.data!.allerte.allertaMaxOggi).toBe(1);
   });
 
   it("né comune né regione → matching 'nazionale' con massimo nazionale", async () => {
     setFixtures({ allerte: ALLETE_OK(["Firenze"]) });
     const r = await runBrief({ ...PARAM_MILANO, regione: "Sardegna" });
-    expect(r.data.allerte.matching).toBe("nazionale");
-    expect(r.data.allerte.nota).toContain("massimo nazionale");
-    expect(r.data.allerte.oggi).toHaveLength(1);
+    expect(r.data!.allerte.matching).toBe("nazionale");
+    expect(r.data!.allerte.nota).toContain("massimo nazionale");
+    expect(r.data!.allerte.oggi).toHaveLength(1);
   });
 
   it("regione senza adapter ARPA → nonCoperto esplicativo", async () => {
     const r = await runBrief({ ...PARAM_MILANO, regione: "Sicilia" });
-    expect(r.data.arpaRegionale.ok).toBe(false);
-    expect(r.data.arpaRegionale.nonCoperto).toContain("Nessun adapter ARPA real-time per 'Sicilia'");
+    expect(r.data!.arpaRegionale.ok).toBe(false);
+    expect(r.data!.arpaRegionale.nonCoperto).toContain("Nessun adapter ARPA real-time per 'Sicilia'");
   });
 });
 
@@ -431,10 +431,10 @@ describe("runBrief — errori di input e robustezza", () => {
     });
     const r = await runBrief({ nome: "Cortina d'Ampezzo", days: 1 });
     expect(r.ok).toBe(true);
-    expect(r.data.localita.nome).toBe("Cortina d'Ampezzo");
-    expect(r.data.localita.regione).toBe("Veneto");
-    expect(r.data.localita.elevation).toBe(1224);
-    expect(r.data.localita.lat).toBe(46.54);
+    expect(r.data!.localita.nome).toBe("Cortina d'Ampezzo");
+    expect(r.data!.localita.regione).toBe("Veneto");
+    expect(r.data!.localita.elevation).toBe(1224);
+    expect(r.data!.localita.lat).toBe(46.54);
   });
 });
 
@@ -527,20 +527,20 @@ describe("pesi dinamici dalla calibrazione", () => {
   it("il modello con errore recente minore pesa di più nel consensus", async () => {
     setFixtures({ nwp: NWP_DIVERGENTE, calibForecast, calibArchive });
     const r = await runBrief(PARAM_MILANO);
-    expect(r.data.nwp.pesiStatici).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
-    expect(r.data.nwp.pesi.ecmwf_ifs025).toBeGreaterThan(1.3);
-    expect(r.data.nwp.pesi.icon_seamless).toBeLessThan(1.0);
-    expect(r.data.nwp.calibrazione.modelli).toHaveLength(2);
+    expect(r.data!.nwp.pesiStatici).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
+    expect(r.data!.nwp.pesi!.ecmwf_ifs025).toBeGreaterThan(1.3);
+    expect(r.data!.nwp.pesi!.icon_seamless).toBeLessThan(1.0);
+    expect(r.data!.nwp.calibrazione!.modelli).toHaveLength(2);
     // T max: ECMWF 30, ICON 35. Con pesi statici 32.2; con la calibrazione si avvicina a ECMWF.
-    expect(r.data.nwp.giorni[0].tmaxPesata).toBeLessThan(32.2);
+    expect(r.data!.nwp.giorni![0].tmaxPesata).toBeLessThan(32.2);
   });
 
   it("senza dati di calibrazione restano i pesi statici", async () => {
     setFixtures({ nwp: NWP_DIVERGENTE });
     const r = await runBrief(PARAM_MILANO);
-    expect(r.data.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
-    expect(r.data.nwp.calibrazione.fonte).toBeNull();
-    expect(r.data.nwp.giorni[0].tmaxPesata).toBe(32.2);
+    expect(r.data!.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
+    expect(r.data!.nwp.calibrazione!.fonte).toBeNull();
+    expect(r.data!.nwp.giorni![0].tmaxPesata).toBe(32.2);
   });
 });
 
@@ -559,10 +559,10 @@ describe("calibrazione sui METAR", () => {
   it("con METAR sufficienti la calibrazione usa i METAR, non ERA5", async () => {
     setFixtures({ nwp: NWP_DIVERGENTE, calibHourly, calibMetar });
     const r = await runBrief(PARAM_MILANO);
-    expect(r.data.nwp.calibrazione.riferimento).toBe("metar");
-    expect(r.data.nwp.calibrazione.fonte).toContain("METAR LIML");
-    expect(r.data.nwp.pesi.ecmwf_ifs025).toBeGreaterThan(1.3);
-    expect(r.data.nwp.pesi.icon_seamless).toBeLessThan(1.0);
+    expect(r.data!.nwp.calibrazione!.riferimento).toBe("metar");
+    expect(r.data!.nwp.calibrazione!.fonte).toContain("METAR LIML");
+    expect(r.data!.nwp.pesi!.ecmwf_ifs025).toBeGreaterThan(1.3);
+    expect(r.data!.nwp.pesi!.icon_seamless).toBeLessThan(1.0);
   });
 
   it("METAR insufficienti → ripiego su ERA5", async () => {
@@ -585,7 +585,7 @@ describe("calibrazione sui METAR", () => {
       },
     });
     const r = await runBrief(PARAM_MILANO);
-    expect(r.data.nwp.calibrazione.riferimento).toBe("era5");
+    expect(r.data!.nwp.calibrazione!.riferimento).toBe("era5");
   });
 });
 
@@ -608,9 +608,9 @@ describe("quota impostata dall'utente", () => {
       models: "ecmwf_ifs025,icon_seamless",
       elevation: 2300,
     });
-    expect(r.data.localita.elevation).toBe(2300);
-    expect(r.data.localita.quotaImpostata).toBe(true);
-    expect(r.data.nwp.macroarea).toBe("alpi");
+    expect(r.data!.localita.elevation).toBe(2300);
+    expect(r.data!.localita.quotaImpostata).toBe(true);
+    expect(r.data!.nwp.macroarea).toBe("alpi");
     const nwpCall = findNwpCall();
     expect(nwpCall?.[1]).toMatchObject({ elevation: 2300 });
   });
@@ -618,7 +618,7 @@ describe("quota impostata dall'utente", () => {
   it("senza elevation non la invia all'NWP", async () => {
     setFixtures();
     const r = await runBrief(PARAM_MILANO);
-    expect(r.data.localita.quotaImpostata).toBe(false);
+    expect(r.data!.localita.quotaImpostata).toBe(false);
     const nwpCall = findNwpCall();
     expect(nwpCall?.[1]).not.toHaveProperty("elevation");
   });

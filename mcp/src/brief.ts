@@ -1,17 +1,27 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { apiGet, toToolResult } from "./http.js";
+import { apiGet, toToolResult, ApiResult } from "./http.js";
 import { MeteoError } from "./errors.js";
 import { haversine } from "./geo.js";
-import { summarizeForecast } from "./summaries.js";
-import { summarizeEnsemble } from "./ensemble_probs.js";
+import { summarizeForecast, OpenMeteoRaw, ModelDaySummary } from "./summaries.js";
+import { summarizeEnsemble, EnsembleHourly } from "./ensemble_probs.js";
 import { getWeights, macroareaFor, weightedMean, Macroarea } from "./model_tuning.js";
 import { dynamicWeights, skillsFromVerification, DynamicWeightResult, ModelSkill } from "./model_scoring.js";
 import { fetchVerificationData, processModelVerification, DailyBag } from "./verification.js";
 import { fetchMetarVerification, skillsFromMetar } from "./metar_verification.js";
 import { normalizeModelId } from "./models.js";
-import { parseMetarStation } from "./italian_sources.js";
-import { fetchLatestBulletin, fetchRadarLatest, filterZones, maxLevel } from "./dpc.js";
+import { parseMetarStation, RawMetar } from "./italian_sources.js";
+import { fetchLatestBulletin, fetchRadarLatest, filterZones, maxLevel, BulletinResult, BulletinZone } from "./dpc.js";
+import type {
+  AllerteSection,
+  BriefData,
+  EnsembleSection,
+  MetarSection,
+  NwpDay,
+  NwpSection,
+  PassThrough,
+  SourceStatus,
+} from "./brief_types.js";
 import { runBriefArpa as arpaVeneto } from "./regioni/arpav.js";
 import { runBriefArpa as arpaTrentino } from "./regioni/meteotrentino.js";
 import { runBriefArpa as arpaMarche } from "./regioni/arpa-marche.js";
@@ -68,7 +78,7 @@ function nearestIcao(lat: number, lon: number, n: number) {
     .slice(0, n);
 }
 
-function sourceStatus(r: PromiseSettledResult<any>): "ok" | "errore" | "parziale" {
+function sourceStatus(r: PromiseSettledResult<{ ok?: boolean } | null | undefined>): SourceStatus {
   if (r.status === "rejected") return "errore";
   const v = r.value;
   if (v == null || v.ok === false) return "errore";
@@ -81,7 +91,7 @@ function sourceStatus(r: PromiseSettledResult<any>): "ok" | "errore" | "parziale
 // ---------------------------------------------------------------------------
 interface ArpaAdapter {
   keywords: string[];
-  execute(lat: number, lon: number): Promise<any>;
+  execute(lat: number, lon: number): Promise<object>;
 }
 
 const ARPA_ADAPTERS: ArpaAdapter[] = [
@@ -107,7 +117,7 @@ export interface BriefParams {
 
 export async function runBrief(
   params: BriefParams,
-): Promise<{ ok: boolean; data?: any; error?: string; elapsedMs: number }> {
+): Promise<{ ok: boolean; data?: BriefData; error?: string; elapsedMs: number }> {
   const { nome, latitude, longitude, regione, days = 3, models, elevation } = params;
   try {
     return await runBriefCore({ nome, latitude, longitude, regione, days, models, elevation });
@@ -125,7 +135,7 @@ export async function runBrief(
 }
 
 function processNwpResult(
-  nwpR: PromiseSettledResult<any>,
+  nwpR: PromiseSettledResult<ApiResult>,
   chosenModels: string[],
   days: number,
   errori: string[],
@@ -133,21 +143,21 @@ function processNwpResult(
   pesi: Record<string, number>,
   calibrazione: DynamicWeightResult,
   calib: Calibrazione,
-) {
+): NwpSection {
   // Pesi statici per macroarea: usati per la precipitazione, perché la
   // calibrazione misura solo l'errore di temperatura.
   const pesiStatici = getWeights(macroarea);
-  let nwp: any = { status: sourceStatus(nwpR) };
+  let nwp: NwpSection = { status: sourceStatus(nwpR) };
   if (nwpR.status === "fulfilled" && nwpR.value.ok) {
-    const raw = nwpR.value.data as any;
+    const raw = nwpR.value.data as OpenMeteoRaw & { current?: NwpSection["current"] };
     const summary = summarizeForecast(raw, chosenModels);
-    const perDay = summary.days.slice(0, days).map((d: any) => {
+    const perDay: NwpDay[] = summary.days.slice(0, days).map((d) => {
       const tmaxs: number[] = [];
       const tmins: number[] = [];
       const precs: number[] = [];
-      const byModel = (sel: (m: any) => number | undefined) =>
+      const byModel = (sel: (m: ModelDaySummary) => number | undefined) =>
         Object.fromEntries(Object.entries(d.models).map(([k, m]) => [k, sel(m)]));
-      for (const m of Object.values(d.models) as any[]) {
+      for (const m of Object.values(d.models)) {
         if (m.temp_max != null) tmaxs.push(m.temp_max);
         if (m.temp_min != null) tmins.push(m.temp_min);
         if (m.precip_sum != null) precs.push(m.precip_sum);
@@ -181,13 +191,13 @@ function processNwpResult(
         ),
         precipMaxMm: round1(precs.length ? Math.max(...precs) : null),
         modelli: Object.fromEntries(
-          Object.entries(d.models).map(([k, m]: [string, any]) => [
+          Object.entries(d.models).map(([k, m]) => [
             k,
             { tmax: m.temp_max, tmin: m.temp_min, precip: m.precip_sum, probPrecip: m.precip_prob_max },
           ]),
         ),
-        score: (d as any).score,
-        flags: (d as any).flags,
+        score: d.score,
+        flags: d.flags,
       };
     });
     nwp = {
@@ -221,12 +231,12 @@ function processNwpResult(
 }
 
 function processAllerteResult(
-  allerteR: PromiseSettledResult<any>,
+  allerteR: PromiseSettledResult<BulletinResult>,
   comune?: string,
   regioneEff?: string,
   errori: string[] = [],
-) {
-  let allerte: any = { status: sourceStatus(allerteR) };
+): AllerteSection {
+  let allerte: AllerteSection = { status: sourceStatus(allerteR) };
   if (allerteR.status === "fulfilled" && allerteR.value.ok) {
     const b = allerteR.value;
     const zoneOggi = comune ? filterZones(b.today, comune) : [];
@@ -245,7 +255,7 @@ function processAllerteResult(
       zoneDomaniEff = b.tomorrow;
       matching = "nazionale";
     }
-    const maxL = (zs: any[]): number | null => {
+    const maxL = (zs: BulletinZone[]): number | null => {
       const m = maxLevel(zs);
       return m >= 0 ? m : null;
     };
@@ -262,8 +272,8 @@ function processAllerteResult(
       regione: regioneEff ?? null,
       matching,
       ...(nota ? { nota } : {}),
-      oggi: zoneOggiEff.map((z: any) => ({ zona: z.zona, regione: z.regione, livelli: z.livelli })),
-      domani: zoneDomaniEff.map((z: any) => ({ zona: z.zona, regione: z.regione, livelli: z.livelli })),
+      oggi: zoneOggiEff.map((z) => ({ zona: z.zona, regione: z.regione, livelli: z.livelli })),
+      domani: zoneDomaniEff.map((z) => ({ zona: z.zona, regione: z.regione, livelli: z.livelli })),
       allertaMaxOggi: maxL(zoneOggiEff),
       allertaMaxDomani: maxL(zoneDomaniEff),
       comuneTrovato: livelloComune,
@@ -276,22 +286,25 @@ function processAllerteResult(
 }
 
 function processMetarResult(
-  metarR: PromiseSettledResult<any>,
+  metarR: PromiseSettledResult<ApiResult>,
   nwpCurrentTemp: number | null,
   icaoList: Array<{ icao: string; distKm: number }>,
-) {
-  let metar: any = { status: sourceStatus(metarR) };
+): MetarSection {
+  let metar: MetarSection = { status: sourceStatus(metarR) };
   if (metarR.status === "fulfilled" && metarR.value.ok) {
-    const payload = metarR.value.data as any;
-    const list = Array.isArray(payload) ? payload : (payload?.data ?? []);
+    const payload = metarR.value.data as { data?: unknown } | unknown[] | null;
+    const found = Array.isArray(payload) ? payload : ((payload as { data?: unknown } | null)?.data ?? []);
+    const list = (Array.isArray(found) ? found : []) as Array<RawMetar | null>;
     const icaoMap = new Map(icaoList.map((i) => [i.icao, i.distKm]));
     metar = {
       status: "ok",
-      stazioni: list.filter(Boolean).map((s: any) => {
-        const parsed = parseMetarStation(s, nwpCurrentTemp ?? undefined);
-        const dist = icaoMap.get(parsed.icao) ?? null;
-        return { ...parsed, distKm: dist };
-      }),
+      stazioni: list
+        .filter((s): s is RawMetar => !!s)
+        .map((s) => {
+          const parsed = parseMetarStation(s, nwpCurrentTemp ?? undefined);
+          const dist = icaoMap.get(parsed.icao ?? "") ?? null;
+          return { ...parsed, distKm: dist };
+        }),
     };
   } else if (metarR.status === "fulfilled") {
     metar = { status: "errore", error: metarR.value.error };
@@ -299,10 +312,10 @@ function processMetarResult(
   return metar;
 }
 
-function processEnsembleResult(ensembleR: PromiseSettledResult<any>) {
-  let ensemble: any = { status: sourceStatus(ensembleR) };
+function processEnsembleResult(ensembleR: PromiseSettledResult<ApiResult>): EnsembleSection {
+  let ensemble: EnsembleSection = { status: sourceStatus(ensembleR) };
   if (ensembleR.status === "fulfilled" && ensembleR.value.ok) {
-    const summary = summarizeEnsemble((ensembleR.value.data as any)?.hourly ?? {});
+    const summary = summarizeEnsemble((ensembleR.value.data as { hourly?: EnsembleHourly } | null)?.hourly ?? {});
     if (!summary) {
       return { status: "errore", error: "ensemble senza membri utilizzabili" };
     }
@@ -322,7 +335,7 @@ function processEnsembleResult(ensembleR: PromiseSettledResult<any>) {
   return ensemble;
 }
 
-function getNwpDivergences(nwp: any): string[] {
+function getNwpDivergences(nwp: NwpSection): string[] {
   const divergenze: string[] = [];
   const day1 = nwp?.giorni?.[0];
   if (day1?.tmaxSpread != null && day1.tmaxSpread > 3) {
@@ -331,7 +344,7 @@ function getNwpDivergences(nwp: any): string[] {
   return divergenze;
 }
 
-function getMetarDivergences(metar: any): string[] {
+function getMetarDivergences(metar: MetarSection): string[] {
   const divergenze: string[] = [];
   if (metar?.stazioni?.length) {
     for (const st of metar.stazioni) {
@@ -347,7 +360,7 @@ function getMetarDivergences(metar: any): string[] {
   return divergenze;
 }
 
-function getAllerteDivergences(allerte: any, nwp: any): string[] {
+function getAllerteDivergences(allerte: AllerteSection, nwp: NwpSection): string[] {
   const divergenze: string[] = [];
   const day1 = nwp?.giorni?.[0];
   if (
@@ -363,7 +376,7 @@ function getAllerteDivergences(allerte: any, nwp: any): string[] {
   return divergenze;
 }
 
-function getEnsembleDivergences(ensemble: any): string[] {
+function getEnsembleDivergences(ensemble: EnsembleSection): string[] {
   const divergenze: string[] = [];
   if (ensemble?.tempSpreadMaxC != null && ensemble.tempSpreadMaxC > 4) {
     divergenze.push(`Spread ensemble T elevato: ${ensemble.tempSpreadMaxC}°C`);
@@ -371,7 +384,7 @@ function getEnsembleDivergences(ensemble: any): string[] {
   return divergenze;
 }
 
-function computeDivergences(nwp: any, metar: any, allerte: any, ensemble: any) {
+function computeDivergences(nwp: NwpSection, metar: MetarSection, allerte: AllerteSection, ensemble: EnsembleSection) {
   return [
     ...getNwpDivergences(nwp),
     ...getMetarDivergences(metar),
@@ -409,7 +422,8 @@ async function resolveLocation(
       language: "it",
       format: "json",
     });
-    const it = ((g.data as any)?.results ?? []).filter((x: any) => x.country_code === "IT");
+    const results = (g.data as { results?: GeoResult[] } | null)?.results ?? [];
+    const it = results.filter((x) => x.country_code === "IT");
     if (!it.length) {
       return { ok: false, error: `Località '${nome}' non trovata in Italia.` };
     }
@@ -473,6 +487,15 @@ const METAR_MAX_KM = 50;
 /** Giorni equivalenti minimi (ore accoppiate / 24) per fidarsi della skill misurata sui METAR. */
 const METAR_MIN_DAYS = 3;
 
+interface GeoResult {
+  country_code?: string;
+  latitude: number;
+  longitude: number;
+  elevation?: number;
+  name?: string;
+  admin1?: string;
+}
+
 interface Calibrazione {
   fonte: "metar" | "era5" | null;
   riferimento: string | null;
@@ -525,7 +548,7 @@ function fetchEnsembleData(lat: number, lon: number, days: number) {
   });
 }
 
-async function fetchArpaData(lat: number, lon: number, regioneEff?: string): Promise<any> {
+async function fetchArpaData(lat: number, lon: number, regioneEff?: string): Promise<object> {
   const regioneNorm = (regioneEff ?? "").toLowerCase();
   const adapter = ARPA_ADAPTERS.find((a) => a.keywords.some((k) => regioneNorm.includes(k)));
   if (adapter) return adapter.execute(lat, lon);
@@ -552,7 +575,7 @@ function runBriefCore({
   days: number;
   models?: string;
   elevation?: number;
-}): Promise<{ ok: boolean; data?: any; error?: string; elapsedMs: number }> {
+}): Promise<{ ok: boolean; data?: BriefData; error?: string; elapsedMs: number }> {
   return (async () => {
     const start = Date.now();
     const errori: string[] = [];
@@ -607,19 +630,20 @@ function runBriefCore({
     const allerte = processAllerteResult(allerteR, comune, regioneEff, errori);
 
     // Radar
-    const radar: any =
+    const radar: BriefData["radar"] =
       radarR.status === "fulfilled"
-        ? { status: radarR.value.ok ? "ok" : "errore", ...radarR.value }
+        ? { ...radarR.value, status: radarR.value.ok ? "ok" : "errore" }
         : { status: "errore" };
 
     // METAR
-    const nwpCurrentTemp: number | null = nwp?.current?.temperature_2m ?? null;
+    const nwpCurrentTemp: number | null = nwp.current?.temperature_2m ?? null;
     const metar = processMetarResult(metarR, nwpCurrentTemp, icaoList);
 
     // Ensemble spread (ECMWF only — ICON has no public ensemble on Open-Meteo)
     const ensemble = processEnsembleResult(ensembleR);
 
-    const arpa: any = arpaR.status === "fulfilled" ? arpaR.value : { status: "errore" };
+    const arpa: PassThrough & { ok?: boolean } =
+      arpaR.status === "fulfilled" ? (arpaR.value as PassThrough & { ok?: boolean }) : { status: "errore" };
 
     const divergenze = computeDivergences(nwp, metar, allerte, ensemble);
 
@@ -636,7 +660,7 @@ function runBriefCore({
     // lanciati: resta corretto se in futuro si aggiungono/rimuovono fonti.
     const fontiInterrogate = [nwpR, allerteR, radarR, metarR, ensembleR, arpaR].length;
 
-    const data = {
+    const data: BriefData = {
       localita: {
         nome: comune ?? null,
         regione: regioneEff ?? null,

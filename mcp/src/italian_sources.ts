@@ -3,6 +3,47 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult, CHECKWX_API_KEY } from "./http.js";
 import { haversine } from "./geo.js";
 
+/** Record METAR grezzo: unione dei campi di aviationweather.gov e CheckWX decoded. */
+export interface RawMetar {
+  icaoId?: string;
+  station_id?: string;
+  icao?: string;
+  temp_c?: number | null;
+  temp?: number | null;
+  temperature?: { celsius?: number | null };
+  wind_speed_kt?: number | null;
+  wspd?: number | null;
+  wind_speed?: { kts?: number | null };
+  wind_dir_degrees?: number | null;
+  wdir?: number | null;
+  wind_direction?: { degrees?: number | null };
+  visibility_statute_mi?: number | string | null;
+  visib?: number | string | null;
+  visibility?: { statute_miles?: number | string | null };
+  sky_condition?: Array<{ sky_cover?: string }>;
+  cover?: string | null;
+  cloud_base?: string | null;
+  altim_in_hpa?: number | null;
+  altim?: number | null;
+  fltCat?: string | null;
+  rawOb?: string | null;
+  raw_text?: string | null;
+  [key: string]: unknown;
+}
+
+export interface MetarStation {
+  icao: string | null;
+  tempC: number | null;
+  windKt: number | null;
+  windDir: number | null;
+  visibilityM: number | null;
+  skyCover: string | null;
+  qnhHpa: number | null;
+  flightCategory: string | null;
+  rawOb: string | null;
+  decodedVsNwp: { tempScarto: number | null; visFlag: boolean };
+}
+
 /** Map CheckWX decoded / AviationWeather shapes into a normalized station record.
  *
  * aviationweather.gov JSON shape (verified 2026-07): { icaoId, temp, dewp,
@@ -10,7 +51,7 @@ import { haversine } from "./geo.js";
  * cover, fltCat, rawOb }. CheckWX decoded uses temp_c / wind_speed_kt /
  * visibility_statute_mi / sky_condition.
  */
-export function parseMetarStation(s: any, nwpTempC?: number): any {
+export function parseMetarStation(s: RawMetar, nwpTempC?: number): MetarStation {
   const tempC = s.temp_c ?? s.temp ?? s.temperature?.celsius ?? null;
   const windKt = s.wind_speed_kt ?? s.wspd ?? s.wind_speed?.kts ?? null;
   const windDir = s.wind_dir_degrees ?? s.wdir ?? s.wind_direction?.degrees ?? null;
@@ -18,7 +59,7 @@ export function parseMetarStation(s: any, nwpTempC?: number): any {
   const visMi = typeof visRaw === "string" ? parseFloat(visRaw) : visRaw;
   const visibilityM = visMi != null && Number.isFinite(visMi) ? Math.round(visMi * 1609.34) : null;
   const sky = Array.isArray(s.sky_condition)
-    ? s.sky_condition.map((c: any) => c.sky_cover).join("/")
+    ? s.sky_condition.map((c) => c.sky_cover).join("/")
     : (s.cover ?? s.cloud_base ?? null);
   const altim = s.altim_in_hpa ?? s.altim ?? null;
   const qnhHpa = altim != null ? (altim > 900 ? Math.round(altim) : Math.round(altim * 33.8639)) : null;
@@ -48,7 +89,10 @@ export function parseMetarStation(s: any, nwpTempC?: number): any {
  * means ≥10 km). CAVOK sets unlimited visibility. If `nwpTempC` is provided,
  * `parseMetarStation` will compute the forecast-vs-observed temperature delta.
  */
-export function parseRawMetar(raw: string, _nwpTempC?: number): any {
+export function parseRawMetar(
+  raw: string,
+  _nwpTempC?: number,
+): RawMetar & { wind_gust_kt: number | null; cavok: boolean } {
   const temp = raw.match(/\b(\d{2})\/(\d{2})\b/);
   const wind = raw.match(/(\d{3})(\d{2})(?:G(\d{2}))?KT/);
   const cavok = /CAVOK/.test(raw);
@@ -70,9 +114,10 @@ export function parseRawMetar(raw: string, _nwpTempC?: number): any {
 }
 
 /** Extract and map stations from aviationweather.gov payload */
-export function extractAviationWeatherStations(payload: any, nwpTempC?: number): any[] {
-  const list = Array.isArray(payload) ? payload : (payload?.data ?? payload?.features ?? [payload]);
-  return list.filter(Boolean).map((s: any) => {
+export function extractAviationWeatherStations(payload: unknown, nwpTempC?: number): MetarStation[] {
+  const p = payload as { data?: unknown; features?: unknown } | null;
+  const list: RawMetar[] = Array.isArray(payload) ? payload : ((p?.data ?? p?.features ?? [payload]) as RawMetar[]);
+  return list.filter(Boolean).map((s) => {
     const rawText = s.rawOb ?? s.raw_text;
     const hasJsonFields = s.temp != null || s.temp_c != null;
     if (rawText && !hasJsonFields) {
@@ -106,8 +151,9 @@ export async function handleCheckwxMetarTaf({
       },
     );
     if (r.ok) {
-      const arr = Array.isArray((r.data as any)?.data) ? (r.data as any).data : [(r.data as any)?.data];
-      const stations = arr.filter(Boolean).map((s: any) => parseMetarStation(s, nwpTempC));
+      const inner = (r.data as { data?: unknown } | null)?.data;
+      const arr = (Array.isArray(inner) ? inner : [inner]) as Array<RawMetar | null | undefined>;
+      const stations = arr.filter((s): s is RawMetar => !!s).map((s) => parseMetarStation(s, nwpTempC));
       return toToolResult({ ...r, data: { stations, raw: r.data, source: "checkwx" } });
     }
   }
@@ -127,7 +173,7 @@ export async function handleCheckwxMetarTaf({
       elapsedMs: fallback.elapsedMs,
     });
   }
-  const payload = fallback.data as any;
+  const payload = fallback.data;
   const stations = extractAviationWeatherStations(payload, nwpTempC);
   return toToolResult({ ...fallback, data: { stations, raw: fallback.data, source: "aviationweather_fallback" } });
 }
@@ -147,7 +193,7 @@ export async function handleAviationweatherMetar({
   });
   if (!r.ok) return toToolResult(r);
   // aviationweather returns either an array or {data: [...]} / {features: [...]}
-  const payload = r.data as any;
+  const payload = r.data;
   const stations = extractAviationWeatherStations(payload, nwpTempC);
   return toToolResult({ ...r, data: { stations, raw: r.data } });
 }
