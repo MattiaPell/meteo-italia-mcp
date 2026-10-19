@@ -32,7 +32,7 @@ describe("registerBioclimaticIndices", () => {
       name: "meteo_bioclimatic_indices",
       arguments: { tempC: 20, ...args },
     });
-    const firstContent = res.content[0];
+    const firstContent = (res.content as any[])[0];
     const text = firstContent && firstContent.type === "text" ? firstContent.text : "";
     if (res.isError) {
       throw new Error(`MCP error: ${text}`);
