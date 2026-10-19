@@ -101,14 +101,16 @@ export interface BriefParams {
   regione?: string;
   days?: number;
   models?: string;
+  /** Quota (m) del punto di interesse: l'NWP viene riportato a questa quota. */
+  elevation?: number;
 }
 
 export async function runBrief(
   params: BriefParams,
 ): Promise<{ ok: boolean; data?: any; error?: string; elapsedMs: number }> {
-  const { nome, latitude, longitude, regione, days = 3, models } = params;
+  const { nome, latitude, longitude, regione, days = 3, models, elevation } = params;
   try {
-    return await runBriefCore({ nome, latitude, longitude, regione, days, models });
+    return await runBriefCore({ nome, latitude, longitude, regione, days, models, elevation });
   } catch (err) {
     // Contratto di runBrief: mai lanciare. Un errore upstream (geocoding,
     // network) torna come { ok: false, error } così la shape del tool resta
@@ -420,10 +422,12 @@ async function resolveLocation(
   return { ok: true, lat, lon, comune, regioneEff, elevation };
 }
 
-function fetchNwpData(lat: number, lon: number, chosenModels: string[], days: number) {
+function fetchNwpData(lat: number, lon: number, chosenModels: string[], days: number, elevation?: number) {
   return apiGet("https://api.open-meteo.com/v1/forecast", {
     latitude: lat,
     longitude: lon,
+    // Con `elevation` Open-Meteo riporta la temperatura alla quota indicata (downscaling).
+    ...(elevation != null ? { elevation } : {}),
     models: chosenModels,
     hourly: [
       "temperature_2m",
@@ -539,6 +543,7 @@ function runBriefCore({
   regione,
   days,
   models,
+  elevation: elevationOverride,
 }: {
   nome?: string;
   latitude?: number;
@@ -546,6 +551,7 @@ function runBriefCore({
   regione?: string;
   days: number;
   models?: string;
+  elevation?: number;
 }): Promise<{ ok: boolean; data?: any; error?: string; elapsedMs: number }> {
   return (async () => {
     const start = Date.now();
@@ -556,7 +562,8 @@ function runBriefCore({
     if (!loc.ok) {
       return { ok: false, error: loc.error, elapsedMs: Date.now() - start };
     }
-    const { lat, lon, comune, regioneEff, elevation } = loc;
+    const { lat, lon, comune, regioneEff } = loc;
+    const elevation = elevationOverride ?? loc.elevation;
 
     const chosenModels = (models ?? DEFAULT_MODELS)
       .split(",")
@@ -564,7 +571,7 @@ function runBriefCore({
       .filter(Boolean);
     const icaoList = nearestIcao(lat!, lon!, 3);
 
-    const nwpTask = fetchNwpData(lat!, lon!, chosenModels, days);
+    const nwpTask = fetchNwpData(lat!, lon!, chosenModels, days, elevationOverride);
     const allerteTask = fetchLatestBulletin();
     const radarTask = fetchRadarLatest("VMI");
     const metarTask = fetchMetarData(icaoList);
@@ -630,7 +637,14 @@ function runBriefCore({
     const fontiInterrogate = [nwpR, allerteR, radarR, metarR, ensembleR, arpaR].length;
 
     const data = {
-      localita: { nome: comune ?? null, regione: regioneEff ?? null, lat, lon, elevation },
+      localita: {
+        nome: comune ?? null,
+        regione: regioneEff ?? null,
+        lat,
+        lon,
+        elevation,
+        quotaImpostata: elevationOverride != null,
+      },
       fontiInterrogate,
       fontiOk: nFontiOk,
       nwp,
@@ -691,12 +705,20 @@ export function registerBrief(server: McpServer) {
           .describe("Regione (es. 'Veneto') — attiva l'adapter ARPA regionale. Auto da geocoding se possibile."),
         days: z.coerce.number().int().min(1).max(7).default(3).describe("Giorni di previsione (1-7)"),
         models: z.string().optional().describe(`Lista modelli Open-Meteo, default ${DEFAULT_MODELS}`),
+        elevation: z.coerce
+          .number()
+          .min(-100)
+          .max(5000)
+          .optional()
+          .describe(
+            "Quota in metri del punto di interesse (es. rifugio, malga): le temperature sono riportate a questa quota. Se omessa si usa la quota del terreno del punto.",
+          ),
       },
       outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    async ({ nome, latitude, longitude, regione, days, models }) => {
-      const r = await runBrief({ nome, latitude, longitude, regione, days, models });
+    async ({ nome, latitude, longitude, regione, days, models, elevation }) => {
+      const r = await runBrief({ nome, latitude, longitude, regione, days, models, elevation });
       if (!r.ok && !r.data) {
         return toToolResult({
           ok: false,

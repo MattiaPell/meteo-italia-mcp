@@ -588,3 +588,38 @@ describe("calibrazione sui METAR", () => {
     expect(r.data.nwp.calibrazione.riferimento).toBe("era5");
   });
 });
+
+function findNwpCall(): unknown[] | undefined {
+  return mocks.apiGet.mock.calls.find((c: unknown[]) => {
+    const params = c[1] as Record<string, unknown> | undefined;
+    return String(c[0]).includes("api.open-meteo.com/v1/forecast") && Array.isArray(params?.hourly) && !!params?.daily;
+  });
+}
+
+describe("quota impostata dall'utente", () => {
+  it("passa elevation all'NWP, la espone e la usa per la macroarea", async () => {
+    setFixtures();
+    const r = await runBrief({
+      nome: "Rifugio",
+      latitude: 46.5,
+      longitude: 11.8,
+      regione: "Veneto",
+      days: 1,
+      models: "ecmwf_ifs025,icon_seamless",
+      elevation: 2300,
+    });
+    expect(r.data.localita.elevation).toBe(2300);
+    expect(r.data.localita.quotaImpostata).toBe(true);
+    expect(r.data.nwp.macroarea).toBe("alpi");
+    const nwpCall = findNwpCall();
+    expect(nwpCall?.[1]).toMatchObject({ elevation: 2300 });
+  });
+
+  it("senza elevation non la invia all'NWP", async () => {
+    setFixtures();
+    const r = await runBrief(PARAM_MILANO);
+    expect(r.data.localita.quotaImpostata).toBe(false);
+    const nwpCall = findNwpCall();
+    expect(nwpCall?.[1]).not.toHaveProperty("elevation");
+  });
+});

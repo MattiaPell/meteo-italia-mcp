@@ -71,7 +71,7 @@ METEO_MCP_DEBUG_PORT=3000 node mcp/dist/index.js
 
 | Tool | Servizio | Tipo |
 |---|---|---|
-| `meteo_brief` | **Aggregatore multi-fonte** (NWP pesato per macroarea + PC + radar + METAR + ARPA + ensemble) | API |
+| `meteo_brief` | **Aggregatore multi-fonte** (NWP pesato per macroarea + PC + radar + METAR + ARPA + ensemble). Parametro opzionale `elevation` (m) per riportare le temperature alla quota di rifugi/malghe | API |
 | `open_meteo_geocode` | Open-Meteo Geocoding | API |
 | `open_meteo_forecast` | Open-Meteo Forecast (raw) | API |
 | `open_meteo_forecast_summary` | Open-Meteo Forecast (compact, ~85% meno contesto) | API |
