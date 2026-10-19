@@ -397,7 +397,8 @@ serviceEl.onchange = renderFields;
 function renderFields(){
   const s = serviceEl.value;
   fieldsEl.textContent='';
-  for (const [k,v] of Object.entries(FIELDS[s]||{})){
+  const fieldsForService = Object.prototype.hasOwnProperty.call(FIELDS, s) ? FIELDS[s] : {};
+  for (const [k,v] of Object.entries(fieldsForService)){
     const l=document.createElement('label'); l.textContent=k;
     const i=document.createElement('input'); i.id='f_'+k; i.value=v;
     fieldsEl.appendChild(l); fieldsEl.appendChild(i);
@@ -406,7 +407,8 @@ function renderFields(){
 document.getElementById('run').onclick = async ()=>{
   const s = serviceEl.value;
   const params={};
-  for (const k of Object.keys(FIELDS[s]||{})){ params[k]=document.getElementById('f_'+k).value; }
+  const fieldsForService = Object.prototype.hasOwnProperty.call(FIELDS, s) ? FIELDS[s] : {};
+  for (const k of Object.keys(fieldsForService)){ params[k]=document.getElementById('f_'+k).value; }
   meta.textContent='Chiamata in corso…'; out.textContent=''; urlEl.textContent='';
   const t0=performance.now();
   try {
