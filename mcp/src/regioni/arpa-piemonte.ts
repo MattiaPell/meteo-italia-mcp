@@ -57,7 +57,7 @@ async function getStationsCached(): Promise<{ ok: boolean; error?: string; stati
   const rows = (r.data as any)?.results ?? [];
   cachedStations = rows.map(parseStation);
   cachedStationsTime = Date.now();
-  return { ok: true, stations: cachedStations };
+  return { ok: true, stations: cachedStations! };
 }
 
 // --- Adapter per brief.ts (Piemonte) ----------------------------------------

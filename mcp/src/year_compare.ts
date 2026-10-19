@@ -54,8 +54,8 @@ export function registerYearCompare(server: McpServer) {
       }
 
       const { daily, diffs, cPrecip, lPrecip, cDates, lDates } = calculateDifferences(
-        currentRes.data,
-        lastYearRes.data,
+        currentRes.data as OpenMeteoResponse,
+        lastYearRes.data as OpenMeteoResponse,
       );
 
       const summary = computeSummary(diffs, cPrecip, lPrecip, daily.length);
@@ -95,7 +95,38 @@ function getLastYearDates(days: number) {
   };
 }
 
-function calculateDifferences(cData: any, lData: any) {
+interface OpenMeteoResponse {
+  daily?: {
+    time?: string[];
+    temperature_2m_max?: number[];
+    temperature_2m_min?: number[];
+    precipitation_sum?: number[];
+  };
+}
+
+interface Differences {
+  tmax: number[];
+  tmin: number[];
+  precip: number[];
+}
+
+interface DailyDifference {
+  date: string;
+  current: { tmax: number; tmin: number; precip: number };
+  lastYear: { tmax: number; tmin: number; precip: number };
+  delta: { tmax: number | null; tmin: number | null; precip: number | null };
+}
+
+interface Summary {
+  avgDeltaTmax: number | null;
+  avgDeltaTmin: number | null;
+  avgDeltaPrecip: number | null;
+  totalPrecipCurrent: number | null;
+  totalPrecipLastYear: number | null;
+  daysAnalyzed: number;
+}
+
+function calculateDifferences(cData: OpenMeteoResponse, lData: OpenMeteoResponse) {
   const cDates: string[] = cData?.daily?.time ?? [];
   const lDates: string[] = lData?.daily?.time ?? [];
   const cTmax: number[] = cData?.daily?.temperature_2m_max ?? [];
@@ -105,8 +136,8 @@ function calculateDifferences(cData: any, lData: any) {
   const lTmin: number[] = lData?.daily?.temperature_2m_min ?? [];
   const lPrecip: number[] = lData?.daily?.precipitation_sum ?? [];
 
-  const daily: any[] = [];
-  const diffs = { tmax: [] as number[], tmin: [] as number[], precip: [] as number[] };
+  const daily: DailyDifference[] = [];
+  const diffs: Differences = { tmax: [] as number[], tmin: [] as number[], precip: [] as number[] };
 
   for (let i = 0; i < Math.min(cDates.length, lDates.length); i++) {
     const cDate = cDates[i];
@@ -134,7 +165,7 @@ function calculateDifferences(cData: any, lData: any) {
   return { daily, diffs, cPrecip, lPrecip, cDates, lDates };
 }
 
-function computeSummary(diffs: any, cPrecip: number[], lPrecip: number[], daysAnalyzed: number) {
+function computeSummary(diffs: Differences, cPrecip: number[], lPrecip: number[], daysAnalyzed: number): Summary {
   const avg = (xs: number[]) => (xs.length ? round1(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
   return {
     avgDeltaTmax: avg(diffs.tmax),
@@ -146,7 +177,7 @@ function computeSummary(diffs: any, cPrecip: number[], lPrecip: number[], daysAn
   };
 }
 
-function evaluateTrend(summary: any) {
+function evaluateTrend(summary: Summary) {
   return {
     temperature:
       summary.avgDeltaTmax != null
