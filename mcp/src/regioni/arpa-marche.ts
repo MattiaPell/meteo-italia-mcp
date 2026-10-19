@@ -2,6 +2,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "../http.js";
 import { haversine } from "../geo.js";
+import type { ArpaBriefResult } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // ARPA Marche / AMAP Agrometeo — stazioni meteorologiche
@@ -29,6 +30,32 @@ export interface ArpaMarcheStation {
   }>;
 }
 
+/** Sensore come restituito da /Stazione/{codice}. */
+export interface MarcheSensorRaw {
+  idSensoreStazione?: number;
+  descrizioneClasse?: string;
+  haGiornalieri?: boolean;
+}
+
+/** Stazione come restituita da /Stazioni e /Stazione/{codice}. */
+export interface MarcheStationRaw {
+  codice?: string;
+  nome?: string;
+  comune?: string;
+  provincia?: string;
+  latitudine?: number;
+  longitudine?: number;
+  latString?: string;
+  longString?: string;
+  altitudine?: string | number;
+  statoCodice?: string;
+  proprietario?: string;
+  fine?: string | null;
+  listaSensori?: { lista?: MarcheSensorRaw[] };
+}
+
+const toNumber = (v: string | number | undefined): number => parseFloat(String(v ?? "")) || 0;
+
 /** Parse coordinate from DMS string like "43°36'6.340''" to decimal. */
 export function dmsToDecimal(dms: string): number {
   const m = dms.match(/(\d+)°(\d+)'([\d.]+)''/);
@@ -41,16 +68,16 @@ export function dmsToDecimal(dms: string): number {
 }
 
 /** Parse stations from raw API list response. */
-export function parseStationList(raw: any): ArpaMarcheStation[] {
-  const items: any[] = raw?.lista ?? [];
-  return items.map((s: any) => ({
+export function parseStationList(raw: { lista?: MarcheStationRaw[] } | null | undefined): ArpaMarcheStation[] {
+  const items: MarcheStationRaw[] = raw?.lista ?? [];
+  return items.map((s) => ({
     codice: s.codice ?? "",
     nome: s.nome ?? "",
     comune: s.comune ?? "",
     provincia: s.provincia ?? "",
     latitudine: s.latitudine || dmsToDecimal(s.latString ?? ""),
     longitudine: s.longitudine || dmsToDecimal(s.longString ?? ""),
-    altitudine: parseFloat(s.altitudine) || 0,
+    altitudine: toNumber(s.altitudine),
     attiva: (s.statoCodice ?? "") === "ATTIVA",
     proprietario: s.proprietario ?? "",
     ultimoAggiornamento: s.fine ?? null,
@@ -59,12 +86,12 @@ export function parseStationList(raw: any): ArpaMarcheStation[] {
 }
 
 /** Parse station detail including sensor list. */
-export function parseStationDetail(raw: any, base: ArpaMarcheStation): ArpaMarcheStation {
+export function parseStationDetail(raw: MarcheStationRaw, base: ArpaMarcheStation): ArpaMarcheStation {
   const sensors = raw?.listaSensori?.lista ?? [];
   return {
     ...base,
-    altitudine: parseFloat(raw.altitudine) || base.altitudine,
-    sensori: sensors.map((sen: any) => ({
+    altitudine: toNumber(raw.altitudine) || base.altitudine,
+    sensori: sensors.map((sen) => ({
       id: sen.idSensoreStazione ?? 0,
       tipo: sen.descrizioneClasse ?? "",
       haGiornalieri: sen.haGiornalieri ?? false,
@@ -72,7 +99,7 @@ export function parseStationDetail(raw: any, base: ArpaMarcheStation): ArpaMarch
   };
 }
 
-let cachedStations: any[] | null = null;
+let cachedStations: MarcheStationRaw[] | null = null;
 let cachedStationsTime = 0;
 
 async function getStationsCached() {
@@ -81,17 +108,26 @@ async function getStationsCached() {
   }
   const stazioniR = await apiGet("https://apimeteo.regione.marche.it/Stazioni", { attive: true });
   if (!stazioniR.ok) return { ok: false, error: stazioniR.error };
-  cachedStations = (stazioniR.data as any)?.lista ?? [];
+  cachedStations = (stazioniR.data as { lista?: MarcheStationRaw[] } | null)?.lista ?? [];
   cachedStationsTime = Date.now();
   return { ok: true, lista: cachedStations };
 }
 
 // --- Adapter per brief.ts (Marche) ------------------------------------------
-export async function runBriefArpa(lat: number, lon: number): Promise<any> {
+export async function runBriefArpa(lat: number, lon: number): Promise<ArpaBriefResult> {
   const stazioniR = await getStationsCached();
   if (!stazioniR.ok) return { ok: false, agenzia: "ARPA Marche (AMAP)", error: stazioniR.error };
-  const items: any[] = stazioniR.lista ?? [];
-  let best: any = null;
+  const items: MarcheStationRaw[] = stazioniR.lista ?? [];
+  let best: {
+    codice: string | undefined;
+    nome: string | undefined;
+    comune: string | undefined;
+    provincia: string | undefined;
+    lat: number;
+    lon: number;
+    distKm: number;
+    ultimoAgg: string | null | undefined;
+  } | null = null;
   for (const s of items) {
     const slat = s.latitudine ?? 0;
     const slon = s.longitudine ?? 0;
@@ -116,7 +152,7 @@ export async function runBriefArpa(lat: number, lon: number): Promise<any> {
     agenzia: "ARPA Marche / AMAP Agrometeo",
     stazioneVicina: best,
     sensori: dettaglio.ok
-      ? ((dettaglio.data as any)?.listaSensori?.lista ?? []).map((sen: any) => ({
+      ? ((dettaglio.data as MarcheStationRaw | null)?.listaSensori?.lista ?? []).map((sen) => ({
           id: sen.idSensoreStazione,
           tipo: sen.descrizioneClasse,
           giornalieri: sen.haGiornalieri,
@@ -130,7 +166,7 @@ export async function handleArpaMarcheStazioni({ provincia, attive }: { provinci
   const r = await apiGet(`${API_BASE}/Stazioni`, { attive: attiveParam });
   if (!r.ok) return toToolResult(r);
 
-  const stations = parseStationList(r.data as any);
+  const stations = parseStationList(r.data as { lista?: MarcheStationRaw[] } | null);
   const filtered = provincia ? stations.filter((s) => s.provincia.toUpperCase() === provincia.toUpperCase()) : stations;
 
   return toToolResult({
@@ -147,7 +183,7 @@ export async function handleArpaMarcheStazione({ codice }: { codice: string }) {
   const r = await apiGet(`${API_BASE}/Stazione/${codice}`, {});
   if (!r.ok) return toToolResult(r);
 
-  const raw = r.data as any;
+  const raw = r.data as MarcheStationRaw;
   const base: ArpaMarcheStation = {
     codice: raw.codice ?? codice,
     nome: raw.nome ?? "",
@@ -155,7 +191,7 @@ export async function handleArpaMarcheStazione({ codice }: { codice: string }) {
     provincia: raw.provincia ?? "",
     latitudine: raw.latitudine ?? dmsToDecimal(raw.latString ?? ""),
     longitudine: raw.longitudine ?? dmsToDecimal(raw.longString ?? ""),
-    altitudine: parseFloat(raw.altitudine) || 0,
+    altitudine: toNumber(raw.altitudine),
     attiva: (raw.statoCodice ?? "") === "ATTIVA",
     proprietario: raw.proprietario ?? "",
     ultimoAggiornamento: raw.fine ?? null,
@@ -180,7 +216,7 @@ export async function handleArpaMarcheGrandezze() {
     ...r,
     data: {
       fonte: "AMAP Agrometeo — Regione Marche (CC BY)",
-      grandezze: (r.data as any)?.lista ?? [],
+      grandezze: (r.data as { lista?: unknown[] } | null)?.lista ?? [],
     },
   });
 }

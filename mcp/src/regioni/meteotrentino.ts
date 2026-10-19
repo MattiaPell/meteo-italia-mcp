@@ -3,6 +3,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "../http.js";
 import { haversine } from "../geo.js";
+import type { ArpaBriefResult } from "./types.js";
 
 const xmlParser = new XMLParser({
   isArray: (name, jpath) => {
@@ -89,7 +90,10 @@ export function parseMeteoTrentinoObs(xml: string): MeteoTrentinoObs {
       (dati.precipitazioni?.precipitazione && dati.precipitazioni.precipitazione.length > 0)
     ) {
       const rains = dati.precipitazione?.precipitazione || dati.precipitazioni?.precipitazione;
-      const sum = rains.reduce((a: number, p: any) => a + parseFloat(p.pioggia || 0), 0);
+      const sum = rains.reduce(
+        (a: number, p: { pioggia?: string | number }) => a + parseFloat(String(p.pioggia || 0)),
+        0,
+      );
       precipSumMm = Math.round(sum * 10) / 10;
     }
 
@@ -122,12 +126,12 @@ async function getStationsCached(): Promise<{ ok: boolean; error?: string; stati
 }
 
 // --- Adapter per brief.ts (Trentino) ----------------------------------------
-export async function runBriefArpa(lat: number, lon: number): Promise<any> {
+export async function runBriefArpa(lat: number, lon: number): Promise<ArpaBriefResult> {
   const list = await getStationsCached();
   if (!list.ok) return { ok: false, agenzia: "Meteotrentino", error: list.error };
   const stations = list.stations;
   let bestFastDistSq = Infinity;
-  let bestStation: any = null;
+  let bestStation: MeteoTrentinoStation | null = null;
   const latRad = (lat * Math.PI) / 180;
   const cosLat = Math.cos(latRad);
   for (const s of stations) {
@@ -139,7 +143,7 @@ export async function runBriefArpa(lat: number, lon: number): Promise<any> {
       bestStation = s;
     }
   }
-  let best: any = null;
+  let best: (MeteoTrentinoStation & { distKm: number }) | null = null;
   if (bestStation) {
     const d = haversine({ lat, lon }, { lat: bestStation.lat, lon: bestStation.lon });
     best = { ...bestStation, distKm: Math.round(d * 10) / 10 };

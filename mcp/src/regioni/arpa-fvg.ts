@@ -2,6 +2,7 @@ import { z } from "zod";
 import { escapeRegExp } from "../utils.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "../http.js";
+import type { ArpaBriefResult } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // ARPA FVG / OSMER — previsioni + dati stazioni (XML)
@@ -189,7 +190,7 @@ export function parsePrevisioniXml(xml: string): Record<string, unknown> {
 }
 
 // --- Adapter per brief.ts (FVG) ---------------------------------------------
-export async function runBriefArpa(_lat: number, _lon: number): Promise<any> {
+export async function runBriefArpa(_lat: number, _lon: number): Promise<ArpaBriefResult> {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const r = await apiGet(
     `http://dev.meteo.fvg.it/xml/previsioni/PW${today}.xml`,

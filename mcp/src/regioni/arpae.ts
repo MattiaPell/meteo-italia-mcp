@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "../http.js";
+import type { ArpaBriefResult } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // ARPAE Emilia-Romagna — bollettino meteo regionale
@@ -48,8 +49,50 @@ export interface ArpaeGiorno {
   >;
 }
 
+interface ArpaeAreaRaw {
+  tmin_previ?: number | null;
+  tmax_previ?: number | null;
+  precipitazioni?: string | null;
+}
+
+interface ArpaeProvinciaRaw {
+  testo_previsione?: string | null;
+  temperatura_minima?: number | null;
+  temperatura_massima?: number | null;
+  precipitazioni?: string | null;
+  vento?: string | null;
+  vento_massimo?: string | null;
+  temperatura?: string | null;
+}
+
+/** Bollettino di un giorno come restituito dall'API Eve. */
+interface ArpaeGiornoRaw {
+  bollettino?: {
+    validita?: string;
+    emissione?: string;
+    regionale?: {
+      testo?: {
+        cielo?: string | null;
+        temperatura?: string | null;
+        vento?: string | null;
+        mare?: string | null;
+      };
+      dati_tabellari?: Partial<Record<"costa" | "pianura" | "rilievi", ArpaeAreaRaw>>;
+    };
+    provinciale?: Partial<Record<Provincia, ArpaeProvinciaRaw>>;
+  };
+}
+
+/** Documento completo: una chiave per giorno (oggi, domani, ...). */
+export type ArpaeRaw = Record<string, ArpaeGiornoRaw | undefined> & { _id?: string };
+
+interface ArpaeListItem {
+  _id?: string;
+  emissione?: string;
+}
+
 /** Estrai il testo regionale o provinciale in formato compatto. */
-export function formatGiorno(day: string, data: any): ArpaeGiorno {
+export function formatGiorno(day: string, data: ArpaeRaw | null | undefined): ArpaeGiorno {
   const b = data?.[day]?.bollettino;
   if (!b) return {};
 
@@ -109,15 +152,15 @@ export function formatGiorno(day: string, data: any): ArpaeGiorno {
 }
 
 // --- Adapter per brief.ts (Emilia-Romagna) -----------------------------------
-export async function runBriefArpa(_lat: number, _lon: number): Promise<any> {
+export async function runBriefArpa(_lat: number, _lon: number): Promise<ArpaBriefResult> {
   const list = await apiGet(`${BOLLETTINO_BASE}/?sort=-_id&max_results=1`, {});
   if (!list.ok) return { ok: false, agenzia: "ARPAE Emilia-Romagna", error: list.error };
-  const items: any[] = (list.data as any)?._items ?? [];
+  const items: ArpaeListItem[] = (list.data as { _items?: ArpaeListItem[] } | null)?._items ?? [];
   if (!items.length) return { ok: false, agenzia: "ARPAE Emilia-Romagna", error: "nessun bollettino" };
   const id = items[0]._id;
   const full = await apiGet(`${BOLLETTINO_BASE}/${id}`, {});
   if (!full.ok) return { ok: false, agenzia: "ARPAE Emilia-Romagna", error: full.error };
-  const raw = full.data as any;
+  const raw = full.data as ArpaeRaw;
   return {
     ok: true,
     agenzia: "ARPAE Emilia-Romagna (dati.arpae.it)",
@@ -154,7 +197,7 @@ export function registerArpae(server: McpServer) {
       const list = await apiGet(`${BOLLETTINO_BASE}/?sort=-_id&max_results=1`, {});
       if (!list.ok) return toToolResult(list);
 
-      const items: any[] = (list.data as any)?._items ?? [];
+      const items: ArpaeListItem[] = (list.data as { _items?: ArpaeListItem[] } | null)?._items ?? [];
       if (!items.length) {
         return toToolResult({
           ok: false,
@@ -170,7 +213,7 @@ export function registerArpae(server: McpServer) {
       const full = await apiGet(`${BOLLETTINO_BASE}/${id}`, {});
       if (!full.ok) return toToolResult(full);
 
-      const raw = full.data as any;
+      const raw = full.data as ArpaeRaw;
 
       // Se richiesto provincia, filtra solo quella
       const provFilter = provincia?.toUpperCase();

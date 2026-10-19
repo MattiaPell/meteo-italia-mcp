@@ -3,6 +3,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "../http.js";
 import { haversine } from "../geo.js";
+import type { ArpaBriefResult } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // ARPAV (Veneto) — previsioni per 15 zone + livelli idrometrici
@@ -86,15 +87,35 @@ export function parseArpavIdroXml(xml: string): ArpavIdroStation[] {
   return stations;
 }
 
+/** Riga del bollettino ARPAV (una per zona e giorno). */
+interface ArpavBollettinoRow {
+  zona?: string;
+  giorno?: string | number;
+  scadenza?: string;
+  testo?: string;
+  precipitazioni?: string;
+  temperatura?: string;
+  "temperatura 1500m"?: string;
+  "temperatura 2000m"?: string;
+  "temperatura 3000m"?: string;
+  attendibilita?: string;
+  avvisi?: string | null;
+  segnalazioni?: string | null;
+  dataemissione?: string;
+}
+
+const bollettinoRows = (data: unknown): ArpavBollettinoRow[] =>
+  (data as { data?: ArpavBollettinoRow[] } | null)?.data ?? [];
+
 // --- Adapter per brief.ts (Veneto) ------------------------------------------
-export async function runBriefArpa(lat: number, lon: number): Promise<any> {
+export async function runBriefArpa(lat: number, lon: number): Promise<ArpaBriefResult> {
   const [bol, idro] = await Promise.all([
     apiGet("https://api.arpa.veneto.it/REST/v1/bollettini_meteo_simboli_en", {}),
     apiGet("https://www.arpa.veneto.it/api/risorse/data-meteo/xml/Ultime48ore.xml", {}, { acceptText: true }),
   ]);
-  const zoneRows = ((bol.data as any)?.data ?? [])
-    .filter((r: any) => Number(r.giorno) <= 1)
-    .map((r: any) => ({
+  const zoneRows = bollettinoRows(bol.data)
+    .filter((r) => Number(r.giorno) <= 1)
+    .map((r) => ({
       zona: r.zona,
       giorno: r.giorno,
       scadenza: r.scadenza,
@@ -102,7 +123,7 @@ export async function runBriefArpa(lat: number, lon: number): Promise<any> {
       precipitazioni: r.precipitazioni,
       attendibilita: r.attendibilita,
     }));
-  let idroVicino: any = null;
+  let idroVicino: Array<ArpavIdroStation & { distKm: number }> | null = null;
   if (idro.ok) {
     const stazioni = parseArpavIdroXml(String(idro.data))
       .map((s) => ({ ...s, distKm: Math.round(haversine({ lat, lon }, { lat: s.lat, lon: s.lon }) * 10) / 10 }))
@@ -113,7 +134,7 @@ export async function runBriefArpa(lat: number, lon: number): Promise<any> {
   return {
     ok: bol.ok,
     agenzia: "ARPAV (Veneto)",
-    bollettino: { emissione: (bol.data as any)?.data?.[0]?.dataemissione ?? null, zone: zoneRows },
+    bollettino: { emissione: bollettinoRows(bol.data)[0]?.dataemissione ?? null, zone: zoneRows },
     idrometrieVicine: idroVicino,
   };
 }
@@ -126,7 +147,7 @@ interface ArpavBollettinoArgs {
 async function handleArpavBollettino({ zona, giorno }: ArpavBollettinoArgs) {
   const r = await apiGet("https://api.arpa.veneto.it/REST/v1/bollettini_meteo_simboli_en", {});
   if (!r.ok) return toToolResult(r);
-  const rows: any[] = (r.data as any)?.data ?? [];
+  const rows = bollettinoRows(r.data);
   const norm = (s: string) => s.toLowerCase();
   const filtered = rows.filter((row) => {
     if (giorno !== undefined && Number(row.giorno) !== giorno) return false;
@@ -187,7 +208,7 @@ async function handleArpavIdro({ provincia, nome, latitude, longitude, limit }: 
         ...s,
         distKm: Math.round(haversine({ lat: latitude, lon: longitude }, { lat: s.lat, lon: s.lon }) * 10) / 10,
       }))
-      .sort((a, b) => (a as any).distKm - (b as any).distKm);
+      .sort((a, b) => a.distKm - b.distKm);
   }
   const out = stations.slice(0, limit);
   return toToolResult({
