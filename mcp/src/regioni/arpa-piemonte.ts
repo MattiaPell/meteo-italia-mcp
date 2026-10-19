@@ -45,31 +45,58 @@ export function parseStation(row: any): ArpaPiemonteStation {
   };
 }
 
+let cachedStations: ArpaPiemonteStation[] | null = null;
+let cachedStationsTime = 0;
+
+async function getStationsCached(): Promise<{ ok: boolean; error?: string; stations: ArpaPiemonteStation[] }> {
+  if (cachedStations && Date.now() - cachedStationsTime < 3600000) {
+    return { ok: true, stations: cachedStations };
+  }
+  const r = await apiGet(`${API_BASE}/meteoidro/stazione_meteorologica/`, { limit: 500, format: "json" });
+  if (!r.ok) return { ok: false, error: r.error, stations: [] };
+  const rows = (r.data as any)?.results ?? [];
+  cachedStations = rows.map(parseStation);
+  cachedStationsTime = Date.now();
+  return { ok: true, stations: cachedStations };
+}
+
 // --- Adapter per brief.ts (Piemonte) ----------------------------------------
 export async function runBriefArpa(lat: number, lon: number): Promise<any> {
-  const stazioniR = await apiGet(`${API_BASE}/meteoidro/stazione_meteorologica/`, { limit: 500, format: "json" });
+  const stazioniR = await getStationsCached();
   if (!stazioniR.ok) return { ok: false, agenzia: "ARPA Piemonte", error: stazioniR.error };
-  const items: any[] = (stazioniR.data as any)?.results ?? [];
-  let best: any = null;
+  const items = stazioniR.stations;
+  let bestFastDistSq = Infinity;
+  let bestStation: any = null;
+  const latRad = (lat * Math.PI) / 180;
+  const cosLat = Math.cos(latRad);
+
   for (const s of items) {
-    const slat = parseFloat(s.latitudine_n_wgs84_d) || 0;
-    const slon = parseFloat(s.longitudine_e_wgs84_d) || 0;
-    if (!slat || !slon) continue;
-    const d = haversine({ lat, lon }, { lat: slat, lon: slon });
-    if (!best || d < best.distKm) {
-      best = {
-        codice: s.codice_stazione,
-        denominazione: s.denominazione,
-        comune: s.comune,
-        provincia: s.sigla_prov,
-        lat: slat,
-        lon: slon,
-        quota: s.quota_stazione,
-        puntoMisura: s.fk_id_punto_misura_meteo,
-        distKm: Math.round(d * 10) / 10,
-      };
+    if (!s.lat || !s.lon) continue;
+    const dLat = s.lat - lat;
+    const dLon = (s.lon - lon) * cosLat;
+    const fastDistSq = dLat * dLat + dLon * dLon;
+    if (fastDistSq < bestFastDistSq) {
+      bestFastDistSq = fastDistSq;
+      bestStation = s;
     }
   }
+
+  let best: any = null;
+  if (bestStation) {
+    const d = haversine({ lat, lon }, { lat: bestStation.lat, lon: bestStation.lon });
+    best = {
+      codice: bestStation.codice,
+      denominazione: bestStation.denominazione,
+      comune: bestStation.comune,
+      provincia: bestStation.provincia,
+      lat: bestStation.lat,
+      lon: bestStation.lon,
+      quota: bestStation.quota,
+      puntoMisura: bestStation.puntoMisura,
+      distKm: Math.round(d * 10) / 10,
+    };
+  }
+
   if (!best) return { ok: false, agenzia: "ARPA Piemonte", error: "nessuna stazione trovata" };
 
   // Fetch daily data for nearest station (ultimi 3 giorni)
@@ -133,17 +160,27 @@ export function registerArpaPiemonte(server: McpServer) {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     async ({ provincia }) => {
-      const r = await apiGet(`${API_BASE}/meteoidro/stazione_meteorologica/`, { limit: 500, format: "json" });
-      if (!r.ok) return toToolResult(r);
+      const r = await getStationsCached();
+      if (!r.ok)
+        return toToolResult({
+          ok: false,
+          url: `${API_BASE}/meteoidro/stazione_meteorologica/`,
+          status: 500,
+          error: r.error,
+          data: null,
+          elapsedMs: 0,
+        });
 
-      const rows = (r.data as any)?.results ?? [];
-      let stations = rows.map(parseStation);
+      let stations = r.stations;
       if (provincia) {
         stations = stations.filter((s: ArpaPiemonteStation) => s.provincia === provincia.toUpperCase());
       }
 
       return toToolResult({
-        ...r,
+        ok: true,
+        url: `${API_BASE}/meteoidro/stazione_meteorologica/`,
+        status: 200,
+        elapsedMs: 0,
         data: {
           fonte: "ARPA Piemonte (CC BY) — utility.arpa.piemonte.it",
           totale: stations.length,
