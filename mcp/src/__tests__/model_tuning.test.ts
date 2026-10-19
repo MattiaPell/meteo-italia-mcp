@@ -175,48 +175,48 @@ describe("getUhiCorrection", () => {
   });
 });
 
-    describe("getUhiCorrection", () => {
-      it("returns null if cityName is missing", () => {
-        expect(getUhiCorrection()).toBeNull();
-      });
+describe("getUhiCorrection", () => {
+  it("returns null if cityName is missing", () => {
+    expect(getUhiCorrection()).toBeNull();
+  });
 
-      it("returns null for unknown city", () => {
-        expect(getUhiCorrection("venezia")).toBeNull();
-      });
+  it("returns null for unknown city", () => {
+    expect(getUhiCorrection("venezia")).toBeNull();
+  });
 
-      it("applies max UHI for optimal conditions (low clouds, low wind)", () => {
-        const res = getUhiCorrection("milano", 10, 2);
-        expect(res).not.toBeNull();
-        expect(res!.conditionsMet).toBe(true);
-        expect(res!.appliedDeltaMin).toBe(2.5);
-      });
+  it("applies max UHI for optimal conditions (low clouds, low wind)", () => {
+    const res = getUhiCorrection("milano", 10, 2);
+    expect(res).not.toBeNull();
+    expect(res!.conditionsMet).toBe(true);
+    expect(res!.appliedDeltaMin).toBe(2.5);
+  });
 
-      it("applies 0 delta for sub-optimal conditions (high clouds, low wind)", () => {
-        const res = getUhiCorrection("milano", 50, 2);
-        expect(res).not.toBeNull();
-        expect(res!.conditionsMet).toBe(false);
-        expect(res!.appliedDeltaMin).toBe(0);
-      });
+  it("applies 0 delta for sub-optimal conditions (high clouds, low wind)", () => {
+    const res = getUhiCorrection("milano", 50, 2);
+    expect(res).not.toBeNull();
+    expect(res!.conditionsMet).toBe(false);
+    expect(res!.appliedDeltaMin).toBe(0);
+  });
 
-      it("applies 0 delta for sub-optimal conditions (low clouds, high wind)", () => {
-        const res = getUhiCorrection("milano", 10, 15);
-        expect(res).not.toBeNull();
-        expect(res!.conditionsMet).toBe(false);
-        expect(res!.appliedDeltaMin).toBe(0);
-      });
+  it("applies 0 delta for sub-optimal conditions (low clouds, high wind)", () => {
+    const res = getUhiCorrection("milano", 10, 15);
+    expect(res).not.toBeNull();
+    expect(res!.conditionsMet).toBe(false);
+    expect(res!.appliedDeltaMin).toBe(0);
+  });
 
-      it("assumes optimal conditions if cloudCover and windSpeedKmH are omitted", () => {
-        const res = getUhiCorrection("milano");
-        expect(res).not.toBeNull();
-        expect(res!.conditionsMet).toBe(true);
-        expect(res!.appliedDeltaMin).toBe(2.5);
-      });
+  it("assumes optimal conditions if cloudCover and windSpeedKmH are omitted", () => {
+    const res = getUhiCorrection("milano");
+    expect(res).not.toBeNull();
+    expect(res!.conditionsMet).toBe(true);
+    expect(res!.appliedDeltaMin).toBe(2.5);
+  });
 
-      it("handles whitespace and case insensitivity", () => {
-        const res = getUhiCorrection("  rOmA  ");
-        expect(res).not.toBeNull();
-        expect(res!.cityName).toBe("  rOmA  "); // Preserves original name in output
-        expect(res!.deltaTMax).toBe(1.0);
-        expect(res!.deltaTMin).toBe(2.0);
-      });
-    });
+  it("handles whitespace and case insensitivity", () => {
+    const res = getUhiCorrection("  rOmA  ");
+    expect(res).not.toBeNull();
+    expect(res!.cityName).toBe("  rOmA  "); // Preserves original name in output
+    expect(res!.deltaTMax).toBe(1.0);
+    expect(res!.deltaTMin).toBe(2.0);
+  });
+});

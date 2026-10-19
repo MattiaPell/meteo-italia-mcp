@@ -5,7 +5,7 @@ describe("extractAviationWeatherStations", () => {
   it("should handle an array payload directly", () => {
     const payload = [
       { icaoId: "LIRF", temp: 18, wdir: 180, wspd: 12, visib: 9999 },
-      { icaoId: "LIML", temp: 15, wdir: 360, wspd: 5, visib: 5000 }
+      { icaoId: "LIML", temp: 15, wdir: 360, wspd: 5, visib: 5000 },
     ];
     const result = extractAviationWeatherStations(payload);
     expect(result).toHaveLength(2);
@@ -17,8 +17,8 @@ describe("extractAviationWeatherStations", () => {
     const payload = {
       data: [
         { icaoId: "LIRF", temp: 18 },
-        { icaoId: "LIML", temp: 15 }
-      ]
+        { icaoId: "LIML", temp: 15 },
+      ],
     };
     const result = extractAviationWeatherStations(payload);
     expect(result).toHaveLength(2);
@@ -29,8 +29,8 @@ describe("extractAviationWeatherStations", () => {
     const payload = {
       features: [
         { icaoId: "LIRF", temp: 18 },
-        { icaoId: "LIML", temp: 15 }
-      ]
+        { icaoId: "LIML", temp: 15 },
+      ],
     };
     const result = extractAviationWeatherStations(payload);
     expect(result).toHaveLength(2);
@@ -45,13 +45,7 @@ describe("extractAviationWeatherStations", () => {
   });
 
   it("should filter out falsy values in the array", () => {
-    const payload = [
-      { icaoId: "LIRF", temp: 18 },
-      null,
-      undefined,
-      false,
-      { icaoId: "LIML", temp: 15 }
-    ];
+    const payload = [{ icaoId: "LIRF", temp: 18 }, null, undefined, false, { icaoId: "LIML", temp: 15 }];
     const result = extractAviationWeatherStations(payload);
     expect(result).toHaveLength(2);
     expect(result[0].icao).toBe("LIRF");
@@ -59,9 +53,7 @@ describe("extractAviationWeatherStations", () => {
   });
 
   it("should parse using parseRawMetar when only rawOb is provided without JSON fields", () => {
-    const payload = [
-      { rawOb: "LIRF 041250Z 18012KT 9999 FEW030 18/12 Q1012 NOSIG" }
-    ];
+    const payload = [{ rawOb: "LIRF 041250Z 18012KT 9999 FEW030 18/12 Q1012 NOSIG" }];
     const result = extractAviationWeatherStations(payload);
     expect(result).toHaveLength(1);
     expect(result[0].tempC).toBe(18);
@@ -71,9 +63,7 @@ describe("extractAviationWeatherStations", () => {
   });
 
   it("should parse using parseRawMetar when only raw_text is provided without JSON fields", () => {
-    const payload = [
-      { raw_text: "LIML 041250Z 36005KT 5000 15/10 Q1015" }
-    ];
+    const payload = [{ raw_text: "LIML 041250Z 36005KT 5000 15/10 Q1015" }];
     const result = extractAviationWeatherStations(payload);
     expect(result).toHaveLength(1);
     expect(result[0].tempC).toBe(15);
@@ -84,9 +74,7 @@ describe("extractAviationWeatherStations", () => {
 
   it("should parse directly using parseMetarStation when JSON fields are present", () => {
     // Both raw text and json fields present, should favor json fields
-    const payload = [
-      { icaoId: "LIRZ", temp: 20, rawOb: "LIRZ 041250Z 18012KT 9999 18/12 Q1012 NOSIG" }
-    ];
+    const payload = [{ icaoId: "LIRZ", temp: 20, rawOb: "LIRZ 041250Z 18012KT 9999 18/12 Q1012 NOSIG" }];
     const result = extractAviationWeatherStations(payload);
     expect(result).toHaveLength(1);
     // tempC should be 20 from JSON, not 18 from rawOb
@@ -96,7 +84,7 @@ describe("extractAviationWeatherStations", () => {
 
   it("should pass nwpTempC down correctly for delta calculations", () => {
     const payload = [
-      { icaoId: "LIRF", temp: 18 } // actual temp is 18
+      { icaoId: "LIRF", temp: 18 }, // actual temp is 18
     ];
     const nwpTempC = 20; // forecast temp is 20
     const result = extractAviationWeatherStations(payload, nwpTempC);
@@ -106,7 +94,7 @@ describe("extractAviationWeatherStations", () => {
 
   it("should pass nwpTempC down correctly when using parseRawMetar", () => {
     const payload = [
-      { rawOb: "LIRF 041250Z 18012KT 9999 18/12 Q1012 NOSIG" } // actual temp is 18
+      { rawOb: "LIRF 041250Z 18012KT 9999 18/12 Q1012 NOSIG" }, // actual temp is 18
     ];
     const nwpTempC = 15; // forecast temp is 15
     const result = extractAviationWeatherStations(payload, nwpTempC);

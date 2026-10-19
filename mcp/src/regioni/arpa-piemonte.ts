@@ -137,7 +137,7 @@ export function registerArpaPiemonte(server: McpServer) {
       if (!r.ok) return toToolResult(r);
 
       const rows = (r.data as any)?.results ?? [];
-      let stations = rows.map(parseStation);
+      let stations: ArpaPiemonteStation[] = rows.map(parseStation);
       if (provincia) {
         stations = stations.filter((s: ArpaPiemonteStation) => s.provincia === provincia.toUpperCase());
       }
