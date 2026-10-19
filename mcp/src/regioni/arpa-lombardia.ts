@@ -47,20 +47,44 @@ export function parseStation(row: any): ArpaLombardiaStation {
   };
 }
 
+let cachedStazioniPromise: Promise<any[]> | null = null;
+
+async function getStationsCached(): Promise<any[]> {
+  if (cachedStazioniPromise !== null) {
+    return cachedStazioniPromise;
+  }
+
+  cachedStazioniPromise = (async () => {
+    try {
+      const stazioniR = await apiGet("https://www.dati.lombardia.it/resource/nf78-nj6b.json", { $limit: "200" });
+      if (stazioniR.ok) {
+        return (stazioniR.data as any[]) ?? [];
+      } else {
+        cachedStazioniPromise = null;
+        return [];
+      }
+    } catch (e) {
+      cachedStazioniPromise = null;
+      throw e;
+    }
+  })();
+
+  return cachedStazioniPromise;
+}
+
 // --- Adapter per brief.ts (Lombardia) --------------------------------------
 export async function runBriefArpa(lat: number, lon: number): Promise<any> {
-  const [stazioniR, obsR] = await Promise.allSettled([
-    apiGet("https://www.dati.lombardia.it/resource/nf78-nj6b.json", { $limit: "200" }),
+  const [stazioni, obsR] = await Promise.allSettled([
+    getStationsCached(),
     apiGet("https://www.dati.lombardia.it/resource/647i-nhxk.json", {
       $where: `data >= '${new Date(Date.now() - 7200 * 1000).toISOString().replace(/\.\d{3}Z$/, "")}'`,
       $order: "data DESC",
       $limit: "50",
     }),
   ]);
-  const stazioni: any[] =
-    stazioniR.status === "fulfilled" && stazioniR.value.ok ? ((stazioniR.value.data as any[]) ?? []) : [];
+  const stazioniData: any[] = stazioni.status === "fulfilled" ? stazioni.value : [];
   let bestObs: any = null;
-  for (const s of stazioni) {
+  for (const s of stazioniData) {
     const slat = parseFloat(s.lat) || 0;
     const slon = parseFloat(s.lng) || 0;
     if (!slat || !slon) continue;
