@@ -164,10 +164,19 @@ interface FixtureOpts {
   /** Risposta della chiamata di calibrazione (forecast con past_days). */
   calibForecast?: unknown;
   calibArchive?: unknown;
+  /** Calibrazione sui METAR: osservazioni (aviationweather con hours) e previsione oraria UTC. */
+  calibMetar?: unknown;
+  calibHourly?: unknown;
 }
 
 function setFixtures(o: FixtureOpts = {}) {
   mocks.apiGet.mockImplementation((url: string, params?: Record<string, unknown>) => {
+    if (o.calibHourly && url.includes("api.open-meteo.com/v1/forecast") && params?.timezone === "UTC") {
+      return Promise.resolve({ ok: true, url, status: 200, data: o.calibHourly, elapsedMs: 1 });
+    }
+    if (o.calibMetar && url.includes("aviationweather.gov") && params?.hours) {
+      return Promise.resolve({ ok: true, url, status: 200, data: o.calibMetar, elapsedMs: 1 });
+    }
     if (o.calibForecast && url.includes("api.open-meteo.com/v1/forecast") && params?.past_days) {
       return Promise.resolve({ ok: true, url, status: 200, data: o.calibForecast, elapsedMs: 1 });
     }
@@ -532,5 +541,50 @@ describe("pesi dinamici dalla calibrazione", () => {
     expect(r.data.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
     expect(r.data.nwp.calibrazione.fonte).toBeNull();
     expect(r.data.nwp.giorni[0].tmaxPesata).toBe(32.2);
+  });
+});
+
+describe("calibrazione sui METAR", () => {
+  const start = Date.parse("2026-10-15T00:00:00Z");
+  const hours = Array.from({ length: 96 }, (_, i) => start + i * 3600_000);
+  const calibHourly = {
+    hourly: {
+      time: hours.map((ms) => new Date(ms).toISOString().slice(0, 16)),
+      temperature_2m_ecmwf_ifs025: hours.map(() => 10.5),
+      temperature_2m_icon_seamless: hours.map(() => 13),
+    },
+  };
+  const calibMetar = hours.map((ms) => ({ icaoId: "LIML", obsTime: ms / 1000, temp: 10 }));
+
+  it("con METAR sufficienti la calibrazione usa i METAR, non ERA5", async () => {
+    setFixtures({ nwp: NWP_DIVERGENTE, calibHourly, calibMetar });
+    const r = await runBrief(PARAM_MILANO);
+    expect(r.data.nwp.calibrazione.riferimento).toBe("metar");
+    expect(r.data.nwp.calibrazione.fonte).toContain("METAR LIML");
+    expect(r.data.nwp.pesi.ecmwf_ifs025).toBeGreaterThan(1.3);
+    expect(r.data.nwp.pesi.icon_seamless).toBeLessThan(1.0);
+  });
+
+  it("METAR insufficienti → ripiego su ERA5", async () => {
+    const poche = calibMetar.slice(0, 10);
+    const dates = ["2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25"];
+    const six = (v: number) => dates.map(() => v);
+    setFixtures({
+      nwp: NWP_DIVERGENTE,
+      calibHourly,
+      calibMetar: poche,
+      calibArchive: { daily: { time: dates, temperature_2m_max: six(20), temperature_2m_min: six(10) } },
+      calibForecast: {
+        daily: {
+          time: dates,
+          temperature_2m_max_ecmwf_ifs025: six(20.5),
+          temperature_2m_min_ecmwf_ifs025: six(10.5),
+          temperature_2m_max_icon_seamless: six(23),
+          temperature_2m_min_icon_seamless: six(13),
+        },
+      },
+    });
+    const r = await runBrief(PARAM_MILANO);
+    expect(r.data.nwp.calibrazione.riferimento).toBe("era5");
   });
 });

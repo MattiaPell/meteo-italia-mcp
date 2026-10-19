@@ -6,8 +6,9 @@ import { haversine } from "./geo.js";
 import { summarizeForecast } from "./summaries.js";
 import { summarizeEnsemble } from "./ensemble_probs.js";
 import { getWeights, macroareaFor, weightedMean, Macroarea } from "./model_tuning.js";
-import { dynamicWeights, skillsFromVerification, DynamicWeightResult } from "./model_scoring.js";
+import { dynamicWeights, skillsFromVerification, DynamicWeightResult, ModelSkill } from "./model_scoring.js";
 import { fetchVerificationData, processModelVerification } from "./verification.js";
+import { fetchMetarVerification, skillsFromMetar } from "./metar_verification.js";
 import { normalizeModelId } from "./models.js";
 import { parseMetarStation } from "./italian_sources.js";
 import { fetchLatestBulletin, fetchRadarLatest, filterZones, maxLevel } from "./dpc.js";
@@ -129,6 +130,7 @@ function processNwpResult(
   macroarea: Macroarea,
   pesi: Record<string, number>,
   calibrazione: DynamicWeightResult,
+  calib: Calibrazione,
 ) {
   // Pesi statici per macroarea: usati per la precipitazione, perché la
   // calibrazione misura solo l'errore di temperatura.
@@ -194,7 +196,11 @@ function processNwpResult(
       pesiStatici: Object.fromEntries(chosenModels.map((k) => [k, pesiStatici[normalizeModelId(k)] ?? 1])),
       calibrazione: calibrazione.applicata
         ? {
-            fonte: `errore Tmax/Tmin degli ultimi ${CALIBRATION_DAYS} giorni vs ERA5 (solo temperatura)`,
+            fonte:
+              calib.fonte === "metar"
+                ? `errore orario della temperatura degli ultimi ${METAR_CALIBRATION_DAYS} giorni vs ${calib.riferimento}`
+                : `errore Tmax/Tmin degli ultimi ${CALIBRATION_DAYS} giorni vs ${calib.riferimento}`,
+            riferimento: calib.fonte,
             modelli: calibrazione.dettaglio,
           }
         : { fonte: null, nota: "dati insufficienti: pesi statici per macroarea" },
@@ -455,15 +461,53 @@ function fetchMetarData(icaoList: { icao: string }[]) {
   });
 }
 
-/** Finestra (giorni) per misurare l'errore recente dei modelli. ERA5 ha ~5 giorni di ritardo: i più recenti restano vuoti. */
+/** Finestra (giorni) per misurare l'errore recente dei modelli vs ERA5. ERA5 ha ~5 giorni di ritardo: i più recenti restano vuoti. */
 const CALIBRATION_DAYS = 14;
+/** Finestra (giorni) per la verifica contro i METAR, e distanza massima della stazione dal punto. */
+const METAR_CALIBRATION_DAYS = 5;
+const METAR_MAX_KM = 50;
+/** Giorni equivalenti minimi (ore accoppiate / 24) per fidarsi della skill misurata sui METAR. */
+const METAR_MIN_DAYS = 3;
 
-/** Skill recente dei modelli sulla località; array vuoto se i dati non sono disponibili. */
-async function fetchCalibrationSkills(lat: number, lon: number, models: string[]) {
+interface Calibrazione {
+  fonte: "metar" | "era5" | null;
+  riferimento: string | null;
+  skills: ModelSkill[];
+  minN: number;
+}
+
+const NESSUNA_CALIBRAZIONE: Calibrazione = { fonte: null, riferimento: null, skills: [], minN: 5 };
+
+/**
+ * Skill recente dei modelli sulla località. Preferisce i METAR della stazione
+ * vicina (osservazione reale); se mancano o sono insufficienti ripiega su ERA5.
+ */
+async function fetchCalibration(
+  lat: number,
+  lon: number,
+  models: string[],
+  station?: { icao: string; lat: number; lon: number; distKm: number },
+): Promise<Calibrazione> {
+  if (station && station.distKm <= METAR_MAX_KM) {
+    try {
+      const v = await fetchMetarVerification(station, models, METAR_CALIBRATION_DAYS);
+      const skills = v ? skillsFromMetar(v) : [];
+      if (skills.filter((s) => s.n >= METAR_MIN_DAYS).length >= 2) {
+        return {
+          fonte: "metar",
+          riferimento: `METAR ${station.icao} (${station.distKm} km)`,
+          skills,
+          minN: METAR_MIN_DAYS,
+        };
+      }
+    } catch {
+      // ripiega su ERA5
+    }
+  }
   const { forecastRes, archiveRes } = await fetchVerificationData(lat, lon, CALIBRATION_DAYS, models);
-  if (!forecastRes.ok || !archiveRes.ok) return [];
+  if (!forecastRes.ok || !archiveRes.ok) return NESSUNA_CALIBRAZIONE;
   const { verification } = processModelVerification(models, forecastRes.data, archiveRes.data);
-  return skillsFromVerification(verification);
+  return { fonte: "era5", riferimento: "ERA5 sulla località", skills: skillsFromVerification(verification), minN: 5 };
 }
 
 function fetchEnsembleData(lat: number, lon: number, days: number) {
@@ -528,7 +572,7 @@ function runBriefCore({
     const arpaTask = fetchArpaData(lat!, lon!, regioneEff);
     const normalizedModels = chosenModels.map(normalizeModelId);
     // Non è una fonte: se fallisce restano i pesi statici.
-    const calibTask = fetchCalibrationSkills(lat!, lon!, normalizedModels).catch(() => []);
+    const calibTask = fetchCalibration(lat!, lon!, normalizedModels, icaoList[0]).catch(() => NESSUNA_CALIBRAZIONE);
 
     const [nwpR, allerteR, radarR, metarR, ensembleR, arpaR] = await Promise.allSettled([
       nwpTask,
@@ -540,8 +584,18 @@ function runBriefCore({
     ]);
 
     const macroarea = macroareaFor(lat!, lon!, elevation ?? undefined);
-    const calibrazione = dynamicWeights(getWeights(macroarea), await calibTask);
-    const nwp = processNwpResult(nwpR, chosenModels, days, errori, macroarea, calibrazione.weights, calibrazione);
+    const calib = await calibTask;
+    const calibrazione = dynamicWeights(getWeights(macroarea), calib.skills, { minN: calib.minN });
+    const nwp = processNwpResult(
+      nwpR,
+      chosenModels,
+      days,
+      errori,
+      macroarea,
+      calibrazione.weights,
+      calibrazione,
+      calib,
+    );
 
     const allerte = processAllerteResult(allerteR, comune, regioneEff, errori);
 
@@ -623,7 +677,7 @@ export function registerBrief(server: McpServer) {
     {
       title: "Brief Meteo Multi-Fonte (default per qualsiasi località italiana)",
       description:
-        "UNICO tool da chiamare per una richiesta meteo su una località italiana: aggrega in parallelo (1) previsione multi-modello Open-Meteo con consensus pesato (per macroarea, calibrato sull'errore recente dei modelli per la temperatura) e spread, (2) allerte Protezione Civile per il comune, (3) stato radar DPC, (4) METAR delle 3 stazioni ICAO più vicine, (5) osservazioni/bollettino ARPA regionale quando disponibili (Veneto, Trentino, Marche, Lombardia, Friuli Venezia Giulia, Emilia-Romagna, Piemonte), (6) probabilità giornaliere da ensemble ECMWF (pioggia ≥1/≥10 mm, gelo, caldo estremo, raffica ≥60 km/h) e spread. Ogni fonte riporta il suo stato (ok/errore/non coperta) e le divergenze tra fonti sono calcolate automaticamente. Usa questo PRIMA di qualsiasi approfondimento con i tool singoli.",
+        "UNICO tool da chiamare per una richiesta meteo su una località italiana: aggrega in parallelo (1) previsione multi-modello Open-Meteo con consensus pesato (per macroarea, calibrato sull'errore recente dei modelli per la temperatura, contro METAR vicini o ERA5) e spread, (2) allerte Protezione Civile per il comune, (3) stato radar DPC, (4) METAR delle 3 stazioni ICAO più vicine, (5) osservazioni/bollettino ARPA regionale quando disponibili (Veneto, Trentino, Marche, Lombardia, Friuli Venezia Giulia, Emilia-Romagna, Piemonte), (6) probabilità giornaliere da ensemble ECMWF (pioggia ≥1/≥10 mm, gelo, caldo estremo, raffica ≥60 km/h) e spread. Ogni fonte riporta il suo stato (ok/errore/non coperta) e le divergenze tra fonti sono calcolate automaticamente. Usa questo PRIMA di qualsiasi approfondimento con i tool singoli.",
       inputSchema: {
         nome: z
           .string()
