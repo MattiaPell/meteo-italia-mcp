@@ -7,7 +7,7 @@ import { summarizeForecast } from "./summaries.js";
 import { summarizeEnsemble } from "./ensemble_probs.js";
 import { getWeights, macroareaFor, weightedMean, Macroarea } from "./model_tuning.js";
 import { dynamicWeights, skillsFromVerification, DynamicWeightResult, ModelSkill } from "./model_scoring.js";
-import { fetchVerificationData, processModelVerification } from "./verification.js";
+import { fetchVerificationData, processModelVerification, DailyBag } from "./verification.js";
 import { fetchMetarVerification, skillsFromMetar } from "./metar_verification.js";
 import { normalizeModelId } from "./models.js";
 import { parseMetarStation } from "./italian_sources.js";
@@ -510,7 +510,7 @@ async function fetchCalibration(
   }
   const { forecastRes, archiveRes } = await fetchVerificationData(lat, lon, CALIBRATION_DAYS, models);
   if (!forecastRes.ok || !archiveRes.ok) return NESSUNA_CALIBRAZIONE;
-  const { verification } = processModelVerification(models, forecastRes.data, archiveRes.data);
+  const { verification } = processModelVerification(models, forecastRes.data as DailyBag, archiveRes.data as DailyBag);
   return { fonte: "era5", riferimento: "ERA5 sulla località", skills: skillsFromVerification(verification), minN: 5 };
 }
 

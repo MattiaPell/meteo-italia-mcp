@@ -11,30 +11,42 @@ import { normalizeModelId } from "./models.js";
  * The result is ~90% smaller than the raw payload and is what the skill's
  * report actually needs (daily extremes, totals, event-hour counts).
  */
-export function summarizeForecast(
-  raw: any,
-  models?: string[],
-): {
-  location: { latitude: number; longitude: number; elevation?: number; timezone: string };
-  days: Array<{
-    date: string;
-    models: Record<
-      string,
-      {
-        temp_max?: number;
-        temp_min?: number;
-        precip_sum?: number;
-        precip_prob_max?: number;
-        cape_max?: number;
-        gust_max?: number;
-        precip_hours: number;
-        thunderstorm_hours: number;
-      }
-    >;
-    score: number;
-    flags: string[];
-  }>;
-} {
+type SeriesBag = Record<string, unknown>;
+
+/** Forma minima della risposta Open-Meteo letta da summarizeForecast. */
+export interface OpenMeteoRaw {
+  latitude?: number;
+  longitude?: number;
+  elevation?: number;
+  timezone?: string;
+  daily?: SeriesBag;
+  hourly?: SeriesBag;
+}
+
+export interface ModelDaySummary {
+  temp_max?: number;
+  temp_min?: number;
+  precip_sum?: number;
+  precip_prob_max?: number;
+  cape_max?: number;
+  gust_max?: number;
+  precip_hours: number;
+  thunderstorm_hours: number;
+}
+
+export interface DaySummary {
+  date: string;
+  models: Record<string, ModelDaySummary>;
+  score: number;
+  flags: string[];
+}
+
+export interface ForecastSummary {
+  location: { latitude?: number; longitude?: number; elevation?: number; timezone: string };
+  days: DaySummary[];
+}
+
+export function summarizeForecast(raw: OpenMeteoRaw | null | undefined, models?: string[]): ForecastSummary {
   const daily = raw?.daily;
   const hourly = raw?.hourly;
   const dates: string[] = (daily?.time as string[]) ?? [];
@@ -75,7 +87,7 @@ export function summarizeForecast(
   };
 
   const days = dates.map((date, i) => {
-    const modelsOut: Record<string, any> = {};
+    const modelsOut: Record<string, ModelDaySummary> = {};
     for (const s of modelList) {
       const tmax = pickDaily(s, "temperature_2m_max")?.[i];
       const tmin = pickDaily(s, "temperature_2m_min")?.[i];
@@ -100,10 +112,10 @@ export function summarizeForecast(
 
   // Score 0-100 (100 = condizioni ideali). Penalizza pioggia, temporali,
   // vento forte e caldo/freddo estremo. Calcolato per giorno su media modelli.
-  const scoreDay = (d: { models: Record<string, any> }): { score: number; flags: string[] } => {
+  const scoreDay = (d: { models: Record<string, ModelDaySummary> }): { score: number; flags: string[] } => {
     const vals = Object.values(d.models);
     if (!vals.length) return { score: 50, flags: [] };
-    const avg = (sel: (m: any) => number | undefined) => {
+    const avg = (sel: (m: ModelDaySummary) => number | undefined) => {
       const xs = vals.map(sel).filter((v): v is number => v != null);
       return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined;
     };
@@ -226,9 +238,9 @@ const KNOWN_MODELS = new Set([
   "ukmo_ukdeterministic_2km",
 ]);
 
-export function inferModels(daily: any, hourly: any): string[] {
+export function inferModels(daily?: SeriesBag, hourly?: SeriesBag): string[] {
   const found = new Set<string>();
-  const scan = (obj: any) => {
+  const scan = (obj?: SeriesBag) => {
     if (!obj || typeof obj !== "object") return;
     for (const rawKey of Object.keys(obj)) {
       if (rawKey === "time") continue;
@@ -320,7 +332,7 @@ export function registerSummaries(server: McpServer) {
             .filter(Boolean)
             .map(normalizeModelId)
         : undefined;
-      const summary = summarizeForecast(raw.data, modelList);
+      const summary = summarizeForecast(raw.data as OpenMeteoRaw, modelList);
       const result: ApiResult = { ...raw, data: summary };
       return toToolResult(result);
     },

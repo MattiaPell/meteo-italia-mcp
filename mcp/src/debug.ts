@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { apiGet, CHECKWX_API_KEY, getMetrics, getCacheStats } from "./http.js";
-import { summarizeForecast } from "./summaries.js";
+import { summarizeForecast, OpenMeteoRaw } from "./summaries.js";
 import { fetchLatestBulletin, fetchRadarLatest, fetchRadarDownload } from "./dpc.js";
 import { runBrief } from "./brief.js";
 
@@ -91,7 +91,7 @@ const DEBUG_SERVICES: Record<string, (q: Record<string, string>) => Promise<unkn
     });
     if (!raw.ok) return raw;
     const modelList = list(q.models);
-    const summary = summarizeForecast(raw.data, modelList);
+    const summary = summarizeForecast(raw.data as OpenMeteoRaw, modelList);
     const bytesRaw = JSON.stringify(raw.data).length;
     const bytesSum = JSON.stringify(summary).length;
     return {
