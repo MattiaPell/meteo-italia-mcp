@@ -9,7 +9,7 @@ export function registerEventReliability(server: McpServer) {
     {
       title: "Forecast Reliability Matrix",
       description:
-        "Retrieve the forecast accuracy reliability percentages for various weather event types (convection, frontal rain, snow, fog, wind, heatwaves) across different lead times.",
+        "Affidabilità INDICATIVA delle previsioni per tipo di evento (convezione, pioggia frontale, nebbia, vento, ondate di calore) e orizzonte temporale. Sono valori di esperienza, non calibrati su verifiche misurate: usali per ordinare la fiducia relativa tra eventi, non come probabilità. Per probabilità misurate sul caso specifico usa ensemble.probabilita di meteo_brief.",
       inputSchema: {},
       outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
@@ -44,6 +44,9 @@ export function registerEventReliability(server: McpServer) {
         url: "mcp://event_reliability",
         status: 200,
         data: {
+          indicativo: true,
+          fonte:
+            "Valori di esperienza (letteratura sintetica e pratica operativa), non derivati da una verifica statistica su dati del progetto.",
           reliabilityMatrix: matrix,
           guideline:
             "Use this matrix to assign confidence levels to forecast discussions. Severe convective storms require nowcasting (Step I/L) due to low predictability beyond 24h.",

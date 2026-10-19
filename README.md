@@ -104,9 +104,9 @@ METEO_MCP_DEBUG_PORT=3000 node mcp/dist/index.js
 | `meteo_bioclimatic_indices` | Heat Index, Wind Chill, GDD, quota neve, incendi, energia FV/Eolico | Locale |
 | `meteo_local_phenomena` | Riconoscimento Bora, Foehn, Scirocco, Libeccio, Tramontana, Garbino, Breva/Tivano, Nebbia, Gelicidio | Locale |
 | `meteo_model_tuning` | Pesi zone, bias modelli, correzione UHI | Locale |
-| `meteo_event_reliability` | Matrice affidabilità forecast | Locale |
+| `meteo_event_reliability` | Matrice affidabilità forecast (valori indicativi, non calibrati) | Locale |
 | `meteo_reference_guidelines` | Tabelle statiche (pollen, uv, construction, tourism, ecc.) | Locale |
-| `meteo_verification` | Verifica storica: forecast vs ERA5 (MAE, bias, RMSE) | Locale |
+| `meteo_verification` | Bias locale recente: previsioni recenti vs ERA5 (MAE, bias, RMSE); non misura i lead time fissi | Locale |
 | `meteo_year_compare` | Confronto annuale: meteo attuale vs anno scorso (ERA5) | Locale |
 | `meteo_pollen` | Previsione pollini Italia (calendario + meteo) | Locale |
 

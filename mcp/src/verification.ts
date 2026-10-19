@@ -136,7 +136,7 @@ export async function handleMeteoVerification({
       reference: "ERA5 Reanalysis (ECMWF)",
       verification,
       interpretation:
-        "bias>0=model sovrastima, bias<0=model sottostima. MAE=errore medio assoluto. RMSE=punisce errori grandi.",
+        "bias>0=model sovrastima, bias<0=model sottostima. MAE=errore medio assoluto. RMSE=punisce errori grandi. Le previsioni confrontate sono la serie recente a breve scadenza (non lead time fissi); il riferimento ERA5 è una rianalisi, debole per la precipitazione.",
     },
     elapsedMs: Date.now() - start,
   });
@@ -149,7 +149,7 @@ export function registerVerification(server: McpServer) {
     {
       title: "Historical Forecast Verification",
       description:
-        "Compare past NWP forecasts with ERA5 reanalysis (ground truth) to compute model accuracy metrics: MAE, bias, RMSE for temperature and precipitation. Use to evaluate local model bias over recent days.",
+        "Confronta le previsioni recenti dei modelli (serie degli ultimi giorni a breve scadenza, non emissioni a lead time fisso) con la rianalisi ERA5 e calcola MAE, bias e RMSE per temperatura e precipitazione. Misura il bias locale recente, non l'affidabilità a 3-7 giorni. ERA5 ha ~5 giorni di ritardo e per la precipitazione è un riferimento debole.",
       inputSchema: {
         ...latLon,
         days: z.coerce.number().int().min(3).max(30).default(7).describe("Number of past days to verify (3-30)"),

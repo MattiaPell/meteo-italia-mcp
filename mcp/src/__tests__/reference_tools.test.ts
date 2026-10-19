@@ -202,6 +202,7 @@ describe("reference tools — smoke KB", () => {
     expect(sc.ok).toBe(true);
     expect(sc.data.reliabilityMatrix.convective_storms).toBeTruthy();
     expect(sc.data.reliabilityMatrix.fog).toBeTruthy();
+    expect(sc.data.indicativo).toBe(true);
     await client.close();
   });
 });
