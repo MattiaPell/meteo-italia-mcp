@@ -352,18 +352,18 @@ export async function handleOpenMeteoSeasonal({
   });
 }
 
-export const geocodeSchema = z.object({
+export const geocodeInputSchema = z.object({
   name: z.string().describe("City or place name to search"),
   count: z.coerce.number().int().min(1).max(50).default(10).describe("Max results"),
   language: z.string().default("it").describe("Response language"),
 });
-export type GeocodeParams = z.infer<typeof geocodeSchema>;
+export type GeocodeParams = z.infer<typeof geocodeInputSchema>;
 
 const GEOCODE_TOOL = {
   title: "Open-Meteo Geocoding",
   description:
     "Resolve a place name to coordinates. Returns results filtered to Italy when possible, with lat/lon, elevation and admin region. Use this before any forecast call.",
-  inputSchema: geocodeSchema.shape,
+  inputSchema: geocodeInputSchema.shape,
   outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
 };
