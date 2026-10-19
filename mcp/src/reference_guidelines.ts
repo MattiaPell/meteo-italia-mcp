@@ -181,31 +181,31 @@ const GLOBAL_MODELS = [
 
 const SELECTION_BY_MACROAREA = {
   nord_ovest: {
-    core: "italia_meteo_arpae_icon_2i, icon_d2, icon_seamless, ecmwf_ifs, arome_france, gfs_seamless, meteoswiss_icon_seamless",
+    core: "italia_meteo_arpae_icon_2i, icon_d2, icon_seamless, ecmwf_ifs025, arome_france, gfs_seamless, meteoswiss_icon_seamless",
     note: "Usa arome_france per la fascia costiera, meteoswiss_icon_seamless per Alpi",
   },
   nord_est: {
-    core: "italia_meteo_arpae_icon_2i, icon_d2, icon_seamless, ecmwf_ifs, gfs_seamless, meteoswiss_icon_seamless, geosphere_seamless",
+    core: "italia_meteo_arpae_icon_2i, icon_d2, icon_seamless, ecmwf_ifs025, gfs_seamless, meteoswiss_icon_seamless, geosphere_seamless",
     note: "Priorità ad ARPAE ICON 2I e ICON D2 per Bora e convezione",
   },
   centro_nord: {
-    core: "italia_meteo_arpae_icon_2i, icon_seamless, icon_eu, ecmwf_ifs, meteofrance_seamless, gfs_seamless",
+    core: "italia_meteo_arpae_icon_2i, icon_seamless, icon_eu, ecmwf_ifs025, meteofrance_seamless, gfs_seamless",
     note: "Consensus bilanciato con ARPAE ICON 2I",
   },
   centro: {
-    core: "ecmwf_ifs, icon_seamless, meteofrance_seamless, arpege_europe, gfs_seamless, icon_eu",
+    core: "ecmwf_ifs025, icon_seamless, meteofrance_seamless, arpege_europe, gfs_seamless, icon_eu",
     note: "ECMWF IFS ha peso elevato",
   },
   sud: {
-    core: "ecmwf_ifs, ecmwf_aifs025, arpege_europe, icon_seamless, gfs_seamless, meteofrance_seamless",
+    core: "ecmwf_ifs025, ecmwf_aifs025, arpege_europe, icon_seamless, gfs_seamless, meteofrance_seamless",
     note: "Usa GFS e ARPEGE per Scirocco e vento sinottico",
   },
   sicilia: {
-    core: "ecmwf_ifs, ecmwf_aifs025, arpege_europe, gfs_seamless, meteofrance_seamless",
+    core: "ecmwf_ifs025, ecmwf_aifs025, arpege_europe, gfs_seamless, meteofrance_seamless",
     note: "ARPAE ICON 2I ha copertura ridotta, usa ECMWF come backbone",
   },
   sardegna: {
-    core: "ecmwf_ifs, ecmwf_aifs025, meteofrance_seamless, arpege_europe, gfs_seamless",
+    core: "ecmwf_ifs025, ecmwf_aifs025, meteofrance_seamless, arpege_europe, gfs_seamless",
     note: "Maestrale dominato da ECMWF e AROME/ARPEGE",
   },
 };

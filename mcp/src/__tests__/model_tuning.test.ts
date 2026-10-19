@@ -70,14 +70,14 @@ describe("meteo_model_tuning", () => {
     const client = await makeClient(registerModelTuning);
     const res = (await client.callTool({
       name: "meteo_model_tuning",
-      arguments: { macroarea: "sud", modelId: "ecmwf_ifs" },
+      arguments: { macroarea: "sud", modelId: "ecmwf_ifs025" },
     })) as ToolResult;
     expect(res.isError).toBe(false);
     const sc = res.structuredContent!;
     expect(sc.ok).toBe(true);
     expect(sc.data.biases.length).toBeGreaterThan(0);
     for (const bias of sc.data.biases) {
-      expect(bias.model).toBe("ecmwf_ifs");
+      expect(bias.model).toBe("ecmwf_ifs025");
     }
     await client.close();
   });
@@ -91,7 +91,7 @@ describe("meteo_model_tuning", () => {
     expect(res.isError).toBe(false);
     const sc = res.structuredContent!;
     expect(sc.ok).toBe(true);
-    expect(sc.data.weights.ecmwf_ifs).toBe(1.5);
+    expect(sc.data.weights.ecmwf_ifs025).toBe(1.5);
     expect(sc.data.weights.gfs_seamless).toBe(1.0);
     await client.close();
   });
@@ -101,7 +101,7 @@ describe("getWeights", () => {
   it("should return correct weights for nord_ovest", () => {
     const weights = getWeights("nord_ovest");
     expect(weights.icon_d2).toBe(1.4);
-    expect(weights.ecmwf_ifs).toBe(1.3);
+    expect(weights.ecmwf_ifs025).toBe(1.3);
     expect(weights.meteoswiss_icon_seamless).toBe(1.3);
     expect(weights.italia_meteo_arpae_icon_2i).toBe(1.2);
     expect(weights.icon_seamless).toBe(1.0);
@@ -113,7 +113,7 @@ describe("getWeights", () => {
     const weights = getWeights("alpi");
     expect(weights.icon_d2).toBe(1.5);
     expect(weights.meteoswiss_icon_seamless).toBe(1.4);
-    expect(weights.ecmwf_ifs).toBe(1.2);
+    expect(weights.ecmwf_ifs025).toBe(1.2);
     expect(weights.geosphere_seamless).toBe(1.2);
     expect(weights.italia_meteo_arpae_icon_2i).toBe(1.1);
     expect(weights.icon_seamless).toBe(0.9);
@@ -128,7 +128,7 @@ describe("getWeights", () => {
     // getWeights internally calls normalizeModelId on the keys of the hardcoded dict
     // we can check if expected normalized keys are present
     const weights = getWeights("sud");
-    expect(weights.ecmwf_ifs).toBe(1.5);
+    expect(weights.ecmwf_ifs025).toBe(1.5);
     expect(weights.ecmwf_aifs025).toBe(1.2);
     expect(weights.arpege_europe).toBe(1.2);
     expect(weights.gfs_seamless).toBe(1.0);
