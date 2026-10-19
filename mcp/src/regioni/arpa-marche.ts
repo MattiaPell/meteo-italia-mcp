@@ -72,11 +72,25 @@ export function parseStationDetail(raw: any, base: ArpaMarcheStation): ArpaMarch
   };
 }
 
+let cachedStations: any[] | null = null;
+let cachedStationsTime = 0;
+
+async function getStationsCached() {
+  if (cachedStations && Date.now() - cachedStationsTime < 3600000) {
+    return { ok: true, lista: cachedStations };
+  }
+  const stazioniR = await apiGet("https://apimeteo.regione.marche.it/Stazioni", { attive: true });
+  if (!stazioniR.ok) return { ok: false, error: stazioniR.error };
+  cachedStations = (stazioniR.data as any)?.lista ?? [];
+  cachedStationsTime = Date.now();
+  return { ok: true, lista: cachedStations };
+}
+
 // --- Adapter per brief.ts (Marche) ------------------------------------------
 export async function runBriefArpa(lat: number, lon: number): Promise<any> {
-  const stazioniR = await apiGet("https://apimeteo.regione.marche.it/Stazioni", { attive: true });
+  const stazioniR = await getStationsCached();
   if (!stazioniR.ok) return { ok: false, agenzia: "ARPA Marche (AMAP)", error: stazioniR.error };
-  const items: any[] = (stazioniR.data as any)?.lista ?? [];
+  const items: any[] = stazioniR.lista ?? [];
   let best: any = null;
   for (const s of items) {
     const slat = s.latitudine ?? 0;
