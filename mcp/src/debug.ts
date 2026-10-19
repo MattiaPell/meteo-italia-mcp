@@ -299,12 +299,17 @@ export function startDebugServer(port: number) {
   });
 
   app.post("/api/debug", async (req, res) => {
+    // Prevent SSRF / CSRF / DNS rebinding by requiring a custom header
+    if (req.headers["x-debug-api"] !== "true") {
+      res.status(403).json({ error: "Forbidden: missing x-debug-api header" });
+      return;
+    }
     const { service, params } = req.body as { service: string; params?: Record<string, string> };
-    const fn = DEBUG_SERVICES[service];
-    if (!fn) {
+    if (!Object.prototype.hasOwnProperty.call(DEBUG_SERVICES, service)) {
       res.status(400).json({ error: `unknown service: ${service}` });
       return;
     }
+    const fn = DEBUG_SERVICES[service];
     try {
       const result = await fn(params ?? {});
       res.json(result);
@@ -405,7 +410,7 @@ document.getElementById('run').onclick = async ()=>{
   meta.textContent='Chiamata in corso…'; out.textContent=''; urlEl.textContent='';
   const t0=performance.now();
   try {
-    const res = await fetch('/api/debug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:s,params})});
+    const res = await fetch('/api/debug',{method:'POST',headers:{'Content-Type':'application/json','x-debug-api':'true'},body:JSON.stringify({service:s,params})});
     const data = await res.json();
     const ms = Math.round(performance.now()-t0);
     urlEl.textContent = data.url || '';
