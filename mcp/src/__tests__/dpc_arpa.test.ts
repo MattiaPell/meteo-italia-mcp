@@ -226,7 +226,6 @@ describe("extractZoneRegionMap", () => {
   });
 });
 
-
 describe("parseArpavIdroStation", () => {
   it("returns null if there are no <DATI> blocks", () => {
     const xml = `<STAZIONE><IDSTAZ>1</IDSTAZ><NOME>Empty</NOME></STAZIONE>`;
