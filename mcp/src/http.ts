@@ -4,7 +4,7 @@ import { MeteoError } from "./errors.js";
 export const DEBUG_PORT = Number(process.env.METEO_MCP_DEBUG_PORT ?? 3000);
 export const CHECKWX_API_KEY = process.env.CHECKWX_API_KEY;
 
-/** Default per-request timeout (ms). SKILL.md §Contratti: timeout > 10s → fallback. */
+/** Default per-request timeout (ms). Oltre 10s la fonte è considerata non disponibile. */
 export const HTTP_TIMEOUT_MS = 10_000;
 /** Max retry attempts after a timeout/5xx/429 (excludes the first try). */
 export const HTTP_MAX_RETRIES = 2;
