@@ -9,7 +9,7 @@ Flusso:
 2. Approfondisci con i tool singoli solo se il brief segnala divergenze/anomalie o se la domanda lo richiede: ensemble (open_meteo_ensemble), radar (dpc_radar), fulmini (dmi_lightning), idro (floods_it_monitoring, open_meteo_flood), mare (open_meteo_marine), aria/pollini (open_meteo_air_quality, meteo_pollen), satellite (eumetsat_satellite_info).
 3. Per contesti specifici (montagna, agricoltura, cantiere, nautica, salute, energia) usa dopo il brief meteo_bioclimatic_indices, meteo_local_phenomena e meteo_reference_guidelines.
 4. Non stimare a memoria ciò che un tool può fornire. Se una fonte è assente o in errore, dichiaralo: non riempire il vuoto con numeri inventati.
-5. Riporta sempre le divergenze tra fonti e il livello di confidenza del brief. Imposta timezone Europe/Rome; sopra 1500 m passa la quota (elevation) alle chiamate NWP.
+5. Riporta sempre le divergenze tra fonti e il livello di confidenza del brief. Imposta timezone Europe/Rome. Per rifugi, malghe o punti in quota passa \`elevation\` (metri) a meteo_brief: le temperature vengono riportate a quella quota.
 
 Per un report strutturato usa il prompt \`meteo_report\`.`;
 

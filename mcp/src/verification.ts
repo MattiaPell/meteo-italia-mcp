@@ -40,21 +40,48 @@ export async function fetchVerificationData(latitude: number, longitude: number,
   return { forecastRes, archiveRes };
 }
 
-export function processModelVerification(modelList: string[], fData: any, aData: any) {
-  const era5Dates: string[] = aData?.daily?.time ?? [];
-  const era5Tmax: number[] = aData?.daily?.temperature_2m_max ?? [];
-  const era5Tmin: number[] = aData?.daily?.temperature_2m_min ?? [];
-  const era5Precip: number[] = aData?.daily?.precipitation_sum ?? [];
+type Series = Array<number | null>;
+export type DailyBag = { daily?: Record<string, unknown> } | null | undefined;
 
-  const verification: Record<string, any> = {};
+export interface ModelVerification {
+  temperature_max: ReturnType<typeof calculateStats>;
+  temperature_min: ReturnType<typeof calculateStats>;
+  precipitation: ReturnType<typeof calculateStats>;
+  daily: Array<{
+    date: string;
+    era5: { tmax: number | null; tmin: number | null; precip: number | null };
+    forecast: { tmax: number | null; tmin: number | null; precip: number | null };
+    error: { tmax: number | null; tmin: number | null; precip: number | null };
+  }>;
+}
+
+/** Serie daily per chiave; prova prima la chiave per modello poi quella senza suffisso. */
+function dailySeries(d: DailyBag, ...keys: string[]): Series {
+  for (const k of keys) {
+    const v = d?.daily?.[k];
+    if (Array.isArray(v)) return v as Series;
+  }
+  return [];
+}
+
+const diff = (a: number | null | undefined, b: number | null | undefined): number | null =>
+  a != null && b != null ? round1(a - b) : null;
+
+export function processModelVerification(modelList: string[], fData: DailyBag, aData: DailyBag) {
+  const era5Dates = dailySeries(aData, "time") as unknown as string[];
+  const era5Tmax = dailySeries(aData, "temperature_2m_max");
+  const era5Tmin = dailySeries(aData, "temperature_2m_min");
+  const era5Precip = dailySeries(aData, "precipitation_sum");
+
+  const verification: Record<string, ModelVerification> = {};
   for (const model of modelList) {
-    const fTmax: number[] = fData?.daily?.[`temperature_2m_max_${model}`] ?? fData?.daily?.temperature_2m_max ?? [];
-    const fTmin: number[] = fData?.daily?.[`temperature_2m_min_${model}`] ?? fData?.daily?.temperature_2m_min ?? [];
-    const fPrecip: number[] = fData?.daily?.[`precipitation_sum_${model}`] ?? fData?.daily?.precipitation_sum ?? [];
-    const fDates: string[] = fData?.daily?.time ?? [];
+    const fTmax = dailySeries(fData, `temperature_2m_max_${model}`, "temperature_2m_max");
+    const fTmin = dailySeries(fData, `temperature_2m_min_${model}`, "temperature_2m_min");
+    const fPrecip = dailySeries(fData, `precipitation_sum_${model}`, "precipitation_sum");
+    const fDates = dailySeries(fData, "time") as unknown as string[];
 
     const errors = { tmax: [] as number[], tmin: [] as number[], precip: [] as number[] };
-    const dailyComparison: any[] = [];
+    const dailyComparison: ModelVerification["daily"] = [];
 
     const fDatesIndex = new Map<string, number>();
     for (let i = 0; i < fDates.length; i++) {
@@ -79,7 +106,7 @@ export function processModelVerification(modelList: string[], fData: any, aData:
         date: era5Dates[i],
         era5: { tmax: eTmax, tmin: eTmin, precip: eP },
         forecast: { tmax: fTmaxV, tmin: fTminV, precip: fPV },
-        error: { tmax: round1(fTmaxV - eTmax), tmin: round1(fTminV - eTmin), precip: round1(fPV - eP) },
+        error: { tmax: diff(fTmaxV, eTmax), tmin: diff(fTminV, eTmin), precip: diff(fPV, eP) },
       });
     }
 
@@ -124,7 +151,11 @@ export async function handleMeteoVerification({
     });
   }
 
-  const { verification, era5Dates } = processModelVerification(modelList, forecastRes.data, archiveRes.data);
+  const { verification, era5Dates } = processModelVerification(
+    modelList,
+    forecastRes.data as DailyBag,
+    archiveRes.data as DailyBag,
+  );
 
   return toToolResult({
     ok: true,
@@ -136,7 +167,7 @@ export async function handleMeteoVerification({
       reference: "ERA5 Reanalysis (ECMWF)",
       verification,
       interpretation:
-        "bias>0=model sovrastima, bias<0=model sottostima. MAE=errore medio assoluto. RMSE=punisce errori grandi.",
+        "bias>0=model sovrastima, bias<0=model sottostima. MAE=errore medio assoluto. RMSE=punisce errori grandi. Le previsioni confrontate sono la serie recente a breve scadenza (non lead time fissi); il riferimento ERA5 è una rianalisi, debole per la precipitazione.",
     },
     elapsedMs: Date.now() - start,
   });
@@ -149,7 +180,7 @@ export function registerVerification(server: McpServer) {
     {
       title: "Historical Forecast Verification",
       description:
-        "Compare past NWP forecasts with ERA5 reanalysis (ground truth) to compute model accuracy metrics: MAE, bias, RMSE for temperature and precipitation. Use to evaluate local model bias over recent days.",
+        "Confronta le previsioni recenti dei modelli (serie degli ultimi giorni a breve scadenza, non emissioni a lead time fisso) con la rianalisi ERA5 e calcola MAE, bias e RMSE per temperatura e precipitazione. Misura il bias locale recente, non l'affidabilità a 3-7 giorni. ERA5 ha ~5 giorni di ritardo e per la precipitazione è un riferimento debole.",
       inputSchema: {
         ...latLon,
         days: z.coerce.number().int().min(3).max(30).default(7).describe("Number of past days to verify (3-30)"),

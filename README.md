@@ -7,7 +7,7 @@ Si collega a qualsiasi client MCP (Claude Desktop, Claude Code, OpenCode, agenti
 ## Come funziona
 
 1. Il client chiede il meteo di una località italiana.
-2. L'agente chiama **`meteo_brief`**: geocoding, previsione multi-modello (consensus pesato per macroarea; per Tmax/Tmin i pesi sono corretti con l'errore degli ultimi 14 giorni dei modelli sulla località, `nwp.calibrazione`), allerte, radar, METAR, ARPA ed ensemble in parallelo. L'output include le probabilità giornaliere dall'ensemble ECMWF (`ensemble.probabilita`: pioggia ≥1/≥10 mm, gelo, caldo ≥35 °C, raffica ≥60 km/h), `divergenze` e `confidenza` (`alta`/`media`/`bassa` con i motivi).
+2. L'agente chiama **`meteo_brief`**: geocoding, previsione multi-modello (consensus pesato per macroarea; la temperatura è calibrata sull'errore recente dei modelli: contro i METAR della stazione entro 50 km se disponibili, altrimenti contro ERA5; vedi `nwp.calibrazione`), allerte, radar, METAR, ARPA ed ensemble in parallelo. L'output include le probabilità giornaliere dall'ensemble ECMWF (`ensemble.probabilita`: pioggia ≥1/≥10 mm, gelo, caldo ≥35 °C, raffica ≥60 km/h), `divergenze` e `confidenza` (`alta`/`media`/`bassa` con i motivi).
 3. Solo se serve (anomalie, domanda specifica) approfondisce con i tool singoli: ensemble, fulmini, idro, mare, aria e pollini, indici bioclimatici, fenomeni locali.
 4. Il prompt MCP **`meteo_report`** (modalità `lite` o `pro`) guida la stesura del report.
 
@@ -71,7 +71,7 @@ METEO_MCP_DEBUG_PORT=3000 node mcp/dist/index.js
 
 | Tool | Servizio | Tipo |
 |---|---|---|
-| `meteo_brief` | **Aggregatore multi-fonte** (NWP pesato per macroarea + PC + radar + METAR + ARPA + ensemble) | API |
+| `meteo_brief` | **Aggregatore multi-fonte** (NWP pesato per macroarea + PC + radar + METAR + ARPA + ensemble). Parametro opzionale `elevation` (m) per riportare le temperature alla quota di rifugi/malghe | API |
 | `open_meteo_geocode` | Open-Meteo Geocoding | API |
 | `open_meteo_forecast` | Open-Meteo Forecast (raw) | API |
 | `open_meteo_forecast_summary` | Open-Meteo Forecast (compact, ~85% meno contesto) | API |
@@ -104,9 +104,9 @@ METEO_MCP_DEBUG_PORT=3000 node mcp/dist/index.js
 | `meteo_bioclimatic_indices` | Heat Index, Wind Chill, GDD, quota neve, incendi, energia FV/Eolico | Locale |
 | `meteo_local_phenomena` | Riconoscimento Bora, Foehn, Scirocco, Libeccio, Tramontana, Garbino, Breva/Tivano, Nebbia, Gelicidio | Locale |
 | `meteo_model_tuning` | Pesi zone, bias modelli, correzione UHI | Locale |
-| `meteo_event_reliability` | Matrice affidabilità forecast | Locale |
+| `meteo_event_reliability` | Matrice affidabilità forecast (valori indicativi, non calibrati) | Locale |
 | `meteo_reference_guidelines` | Tabelle statiche (pollen, uv, construction, tourism, ecc.) | Locale |
-| `meteo_verification` | Verifica storica: forecast vs ERA5 (MAE, bias, RMSE) | Locale |
+| `meteo_verification` | Bias locale recente: previsioni recenti vs ERA5 (MAE, bias, RMSE); non misura i lead time fissi | Locale |
 | `meteo_year_compare` | Confronto annuale: meteo attuale vs anno scorso (ERA5) | Locale |
 | `meteo_pollen` | Previsione pollini Italia (calendario + meteo) | Locale |
 
