@@ -55,6 +55,25 @@ export function summarizeForecast(
     return Array.isArray(arr) ? arr : undefined;
   };
 
+  // Indici orari [start, end) per data: l'array hourly è ordinato, quindi le
+  // ore di un giorno sono contigue. Serve per massimi giornalieri da hourly.
+  const hourRange = new Map<string, [number, number]>();
+  const hourTimes = (hourly?.time as string[]) ?? [];
+  for (let h = 0; h < hourTimes.length; h++) {
+    const d = hourTimes[h]?.slice(0, 10);
+    if (!d) continue;
+    const r = hourRange.get(d);
+    if (r) r[1] = h + 1;
+    else hourRange.set(d, [h, h + 1]);
+  }
+  const hourlyDayMax = (model: string, base: string, date: string): number | undefined => {
+    const arr = pickHourly(model, base);
+    const r = hourRange.get(date);
+    if (!arr || !r) return undefined;
+    const xs = arr.slice(r[0], r[1]).filter((v): v is number => v != null);
+    return xs.length ? Math.max(...xs) : undefined;
+  };
+
   const days = dates.map((date, i) => {
     const modelsOut: Record<string, any> = {};
     for (const s of modelList) {
@@ -62,10 +81,9 @@ export function summarizeForecast(
       const tmin = pickDaily(s, "temperature_2m_min")?.[i];
       const psum = pickDaily(s, "precipitation_sum")?.[i];
       const pprob = pickDaily(s, "precipitation_probability_max")?.[i];
-      // CAPE: only available as hourly, not daily — compute daily max from hourly
-      const capeHourly = pickHourly(s, "cape");
-      const cape = capeHourly ? Math.max(...capeHourly.filter((v): v is number => v != null)) : undefined;
-      const gust = pickDaily(s, "wind_gusts_10m_max")?.[i] ?? pickHourly(s, "wind_gusts_10m")?.[i];
+      // CAPE: only available as hourly, not daily — compute the max of that day's hours
+      const cape = hourlyDayMax(s, "cape", date);
+      const gust = pickDaily(s, "wind_gusts_10m_max")?.[i] ?? hourlyDayMax(s, "wind_gusts_10m", date);
       modelsOut[s] = {
         temp_max: num(tmax),
         temp_min: num(tmin),
@@ -154,7 +172,7 @@ export function summarizeForecast(
         const m = days[dayIdx]?.models[s];
         if (!m) continue;
         if (p !== null && p !== undefined && p > 0) m.precip_hours++;
-        if (code !== null && code !== undefined && code >= 80 && code <= 99) m.thunderstorm_hours++;
+        if (code !== null && code !== undefined && code >= 95 && code <= 99) m.thunderstorm_hours++;
       }
     }
   }

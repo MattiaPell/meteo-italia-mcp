@@ -98,7 +98,7 @@ describe("summarizeForecast", () => {
     expect(ecm.precip_sum).toBe(12);
     expect(ecm.precip_prob_max).toBe(80);
     expect(ecm.gust_max).toBe(75);
-    // 2 ore con precipitazione > 0, 2 ore con weather_code 80-99
+    // 2 ore con precipitazione > 0, 2 ore con weather_code 95-99
     expect(ecm.precip_hours).toBe(2);
     expect(ecm.thunderstorm_hours).toBe(2);
 
@@ -178,5 +178,42 @@ describe("summarizeForecast", () => {
     };
     const out = summarizeForecast(raw, ["ecmwf_ifs025"]);
     expect(out.days[0].models["ecmwf_ifs025"].cape_max).toBe(1500);
+  });
+  it("cape_max e gust_max da orario sono per-giorno, non sull'intero orizzonte", () => {
+    const raw = {
+      latitude: 45,
+      longitude: 9,
+      timezone: "Europe/Rome",
+      daily: {
+        time: ["2026-08-29", "2026-08-30"],
+        temperature_2m_max_ecmwf_ifs025: [30, 28],
+      },
+      hourly: {
+        time: ["2026-08-29T00:00", "2026-08-29T01:00", "2026-08-30T00:00", "2026-08-30T01:00"],
+        cape_ecmwf_ifs025: [500, 1500, 100, 200],
+        wind_gusts_10m_ecmwf_ifs025: [10, 50, 20, 30],
+      },
+    };
+    const out = summarizeForecast(raw, ["ecmwf_ifs025"]);
+    expect(out.days[0].models["ecmwf_ifs025"].cape_max).toBe(1500);
+    expect(out.days[1].models["ecmwf_ifs025"].cape_max).toBe(200);
+    expect(out.days[0].models["ecmwf_ifs025"].gust_max).toBe(50);
+    expect(out.days[1].models["ecmwf_ifs025"].gust_max).toBe(30);
+  });
+
+  it("weather_code 80-86 (rovesci) non conta come temporale", () => {
+    const raw = {
+      latitude: 45,
+      longitude: 9,
+      timezone: "Europe/Rome",
+      daily: { time: ["2026-08-29"], temperature_2m_max_ecmwf_ifs025: [30] },
+      hourly: {
+        time: ["2026-08-29T00:00", "2026-08-29T01:00", "2026-08-29T02:00"],
+        weather_code_ecmwf_ifs025: [80, 85, 95],
+        precipitation_ecmwf_ifs025: [1, 1, 1],
+      },
+    };
+    const out = summarizeForecast(raw, ["ecmwf_ifs025"]);
+    expect(out.days[0].models["ecmwf_ifs025"].thunderstorm_hours).toBe(1);
   });
 });
