@@ -6,6 +6,8 @@ import { haversine } from "./geo.js";
 import { summarizeForecast } from "./summaries.js";
 import { summarizeEnsemble } from "./ensemble_probs.js";
 import { getWeights, macroareaFor, weightedMean, Macroarea } from "./model_tuning.js";
+import { dynamicWeights, skillsFromVerification, DynamicWeightResult } from "./model_scoring.js";
+import { fetchVerificationData, processModelVerification } from "./verification.js";
 import { normalizeModelId } from "./models.js";
 import { parseMetarStation } from "./italian_sources.js";
 import { fetchLatestBulletin, fetchRadarLatest, filterZones, maxLevel } from "./dpc.js";
@@ -125,8 +127,12 @@ function processNwpResult(
   days: number,
   errori: string[],
   macroarea: Macroarea,
+  pesi: Record<string, number>,
+  calibrazione: DynamicWeightResult,
 ) {
-  const pesi = getWeights(macroarea);
+  // Pesi statici per macroarea: usati per la precipitazione, perché la
+  // calibrazione misura solo l'errore di temperatura.
+  const pesiStatici = getWeights(macroarea);
   let nwp: any = { status: sourceStatus(nwpR) };
   if (nwpR.status === "fulfilled" && nwpR.value.ok) {
     const raw = nwpR.value.data as any;
@@ -185,6 +191,13 @@ function processNwpResult(
       modelli: chosenModels,
       macroarea,
       pesi: Object.fromEntries(chosenModels.map((k) => [k, pesi[normalizeModelId(k)] ?? 1])),
+      pesiStatici: Object.fromEntries(chosenModels.map((k) => [k, pesiStatici[normalizeModelId(k)] ?? 1])),
+      calibrazione: calibrazione.applicata
+        ? {
+            fonte: `errore Tmax/Tmin degli ultimi ${CALIBRATION_DAYS} giorni vs ERA5 (solo temperatura)`,
+            modelli: calibrazione.dettaglio,
+          }
+        : { fonte: null, nota: "dati insufficienti: pesi statici per macroarea" },
       giorni: perDay,
       scoreOggi: perDay[0]?.score ?? null,
       flagsOggi: perDay[0]?.flags ?? [],
@@ -442,6 +455,17 @@ function fetchMetarData(icaoList: { icao: string }[]) {
   });
 }
 
+/** Finestra (giorni) per misurare l'errore recente dei modelli. ERA5 ha ~5 giorni di ritardo: i più recenti restano vuoti. */
+const CALIBRATION_DAYS = 14;
+
+/** Skill recente dei modelli sulla località; array vuoto se i dati non sono disponibili. */
+async function fetchCalibrationSkills(lat: number, lon: number, models: string[]) {
+  const { forecastRes, archiveRes } = await fetchVerificationData(lat, lon, CALIBRATION_DAYS, models);
+  if (!forecastRes.ok || !archiveRes.ok) return [];
+  const { verification } = processModelVerification(models, forecastRes.data, archiveRes.data);
+  return skillsFromVerification(verification);
+}
+
 function fetchEnsembleData(lat: number, lon: number, days: number) {
   return apiGet("https://ensemble-api.open-meteo.com/v1/ensemble", {
     latitude: lat,
@@ -502,6 +526,9 @@ function runBriefCore({
     const metarTask = fetchMetarData(icaoList);
     const ensembleTask = fetchEnsembleData(lat!, lon!, days);
     const arpaTask = fetchArpaData(lat!, lon!, regioneEff);
+    const normalizedModels = chosenModels.map(normalizeModelId);
+    // Non è una fonte: se fallisce restano i pesi statici.
+    const calibTask = fetchCalibrationSkills(lat!, lon!, normalizedModels).catch(() => []);
 
     const [nwpR, allerteR, radarR, metarR, ensembleR, arpaR] = await Promise.allSettled([
       nwpTask,
@@ -512,7 +539,9 @@ function runBriefCore({
       arpaTask,
     ]);
 
-    const nwp = processNwpResult(nwpR, chosenModels, days, errori, macroareaFor(lat!, lon!, elevation ?? undefined));
+    const macroarea = macroareaFor(lat!, lon!, elevation ?? undefined);
+    const calibrazione = dynamicWeights(getWeights(macroarea), await calibTask);
+    const nwp = processNwpResult(nwpR, chosenModels, days, errori, macroarea, calibrazione.weights, calibrazione);
 
     const allerte = processAllerteResult(allerteR, comune, regioneEff, errori);
 
@@ -594,7 +623,7 @@ export function registerBrief(server: McpServer) {
     {
       title: "Brief Meteo Multi-Fonte (default per qualsiasi località italiana)",
       description:
-        "UNICO tool da chiamare per una richiesta meteo su una località italiana: aggrega in parallelo (1) previsione multi-modello Open-Meteo con consensus e spread, (2) allerte Protezione Civile per il comune, (3) stato radar DPC, (4) METAR delle 3 stazioni ICAO più vicine, (5) osservazioni/bollettino ARPA regionale quando disponibili (Veneto, Trentino, Marche, Lombardia, Friuli Venezia Giulia, Emilia-Romagna, Piemonte), (6) probabilità giornaliere da ensemble ECMWF (pioggia ≥1/≥10 mm, gelo, caldo estremo, raffica ≥60 km/h) e spread. Ogni fonte riporta il suo stato (ok/errore/non coperta) e le divergenze tra fonti sono calcolate automaticamente. Usa questo PRIMA di qualsiasi approfondimento con i tool singoli.",
+        "UNICO tool da chiamare per una richiesta meteo su una località italiana: aggrega in parallelo (1) previsione multi-modello Open-Meteo con consensus pesato (per macroarea, calibrato sull'errore recente dei modelli per la temperatura) e spread, (2) allerte Protezione Civile per il comune, (3) stato radar DPC, (4) METAR delle 3 stazioni ICAO più vicine, (5) osservazioni/bollettino ARPA regionale quando disponibili (Veneto, Trentino, Marche, Lombardia, Friuli Venezia Giulia, Emilia-Romagna, Piemonte), (6) probabilità giornaliere da ensemble ECMWF (pioggia ≥1/≥10 mm, gelo, caldo estremo, raffica ≥60 km/h) e spread. Ogni fonte riporta il suo stato (ok/errore/non coperta) e le divergenze tra fonti sono calcolate automaticamente. Usa questo PRIMA di qualsiasi approfondimento con i tool singoli.",
       inputSchema: {
         nome: z
           .string()

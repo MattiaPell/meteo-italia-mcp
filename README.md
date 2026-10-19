@@ -7,7 +7,7 @@ Si collega a qualsiasi client MCP (Claude Desktop, Claude Code, OpenCode, agenti
 ## Come funziona
 
 1. Il client chiede il meteo di una località italiana.
-2. L'agente chiama **`meteo_brief`**: geocoding, previsione multi-modello (consensus pesato per macroarea), allerte, radar, METAR, ARPA ed ensemble in parallelo. L'output include le probabilità giornaliere dall'ensemble ECMWF (`ensemble.probabilita`: pioggia ≥1/≥10 mm, gelo, caldo ≥35 °C, raffica ≥60 km/h), `divergenze` e `confidenza` (`alta`/`media`/`bassa` con i motivi).
+2. L'agente chiama **`meteo_brief`**: geocoding, previsione multi-modello (consensus pesato per macroarea; per Tmax/Tmin i pesi sono corretti con l'errore degli ultimi 14 giorni dei modelli sulla località, `nwp.calibrazione`), allerte, radar, METAR, ARPA ed ensemble in parallelo. L'output include le probabilità giornaliere dall'ensemble ECMWF (`ensemble.probabilita`: pioggia ≥1/≥10 mm, gelo, caldo ≥35 °C, raffica ≥60 km/h), `divergenze` e `confidenza` (`alta`/`media`/`bassa` con i motivi).
 3. Solo se serve (anomalie, domanda specifica) approfondisce con i tool singoli: ensemble, fulmini, idro, mare, aria e pollini, indici bioclimatici, fenomeni locali.
 4. Il prompt MCP **`meteo_report`** (modalità `lite` o `pro`) guida la stesura del report.
 

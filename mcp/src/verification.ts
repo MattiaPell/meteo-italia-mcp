@@ -12,7 +12,7 @@ export function calculateStats(errs: number[]) {
   return { n, mae, bias, rmse };
 }
 
-async function fetchVerificationData(latitude: number, longitude: number, days: number, modelList: string[]) {
+export async function fetchVerificationData(latitude: number, longitude: number, days: number, modelList: string[]) {
   const forecastRes = await apiGet("https://api.open-meteo.com/v1/forecast", {
     latitude,
     longitude,
@@ -40,7 +40,7 @@ async function fetchVerificationData(latitude: number, longitude: number, days: 
   return { forecastRes, archiveRes };
 }
 
-function processModelVerification(modelList: string[], fData: any, aData: any) {
+export function processModelVerification(modelList: string[], fData: any, aData: any) {
   const era5Dates: string[] = aData?.daily?.time ?? [];
   const era5Tmax: number[] = aData?.daily?.temperature_2m_max ?? [];
   const era5Tmin: number[] = aData?.daily?.temperature_2m_min ?? [];

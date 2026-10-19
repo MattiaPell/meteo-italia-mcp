@@ -161,10 +161,19 @@ interface FixtureOpts {
   ensembleThrow?: boolean;
   arpa?: unknown;
   arpaThrow?: boolean;
+  /** Risposta della chiamata di calibrazione (forecast con past_days). */
+  calibForecast?: unknown;
+  calibArchive?: unknown;
 }
 
 function setFixtures(o: FixtureOpts = {}) {
-  mocks.apiGet.mockImplementation((url: string) => {
+  mocks.apiGet.mockImplementation((url: string, params?: Record<string, unknown>) => {
+    if (o.calibForecast && url.includes("api.open-meteo.com/v1/forecast") && params?.past_days) {
+      return Promise.resolve({ ok: true, url, status: 200, data: o.calibForecast, elapsedMs: 1 });
+    }
+    if (o.calibArchive && url.includes("archive-api.open-meteo.com")) {
+      return Promise.resolve({ ok: true, url, status: 200, data: o.calibArchive, elapsedMs: 1 });
+    }
     if (url.includes("api.open-meteo.com/v1/forecast")) {
       if (o.nwpThrow) return Promise.reject(new MeteoError("NETWORK", `Network error contacting ${url}`));
       if (o.nwpErrore)
@@ -489,5 +498,39 @@ describe("computeConfidence", () => {
   it("bassa: NWP assente o due fonti core mancanti", () => {
     expect(computeConfidence({ ...ok, nwp: "errore" }, []).livello).toBe("bassa");
     expect(computeConfidence({ nwp: "ok", allerte: "errore", metar: "errore" }, []).livello).toBe("bassa");
+  });
+});
+
+describe("pesi dinamici dalla calibrazione", () => {
+  const dates = ["2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25"];
+  const six = (v: number) => dates.map(() => v);
+  const calibArchive = { daily: { time: dates, temperature_2m_max: six(20), temperature_2m_min: six(10) } };
+  const calibForecast = {
+    daily: {
+      time: dates,
+      temperature_2m_max_ecmwf_ifs025: six(20.5),
+      temperature_2m_min_ecmwf_ifs025: six(10.5),
+      temperature_2m_max_icon_seamless: six(23),
+      temperature_2m_min_icon_seamless: six(13),
+    },
+  };
+
+  it("il modello con errore recente minore pesa di più nel consensus", async () => {
+    setFixtures({ nwp: NWP_DIVERGENTE, calibForecast, calibArchive });
+    const r = await runBrief(PARAM_MILANO);
+    expect(r.data.nwp.pesiStatici).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
+    expect(r.data.nwp.pesi.ecmwf_ifs025).toBeGreaterThan(1.3);
+    expect(r.data.nwp.pesi.icon_seamless).toBeLessThan(1.0);
+    expect(r.data.nwp.calibrazione.modelli).toHaveLength(2);
+    // T max: ECMWF 30, ICON 35. Con pesi statici 32.2; con la calibrazione si avvicina a ECMWF.
+    expect(r.data.nwp.giorni[0].tmaxPesata).toBeLessThan(32.2);
+  });
+
+  it("senza dati di calibrazione restano i pesi statici", async () => {
+    setFixtures({ nwp: NWP_DIVERGENTE });
+    const r = await runBrief(PARAM_MILANO);
+    expect(r.data.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
+    expect(r.data.nwp.calibrazione.fonte).toBeNull();
+    expect(r.data.nwp.giorni[0].tmaxPesata).toBe(32.2);
   });
 });
