@@ -122,15 +122,14 @@ function processNwpResult(nwpR: PromiseSettledResult<any>, chosenModels: string[
     const raw = nwpR.value.data as any;
     const summary = summarizeForecast(raw, chosenModels);
     const perDay = summary.days.slice(0, days).map((d: any) => {
-      const tmaxs = Object.values(d.models)
-        .map((m: any) => m.temp_max)
-        .filter((v): v is number => v != null);
-      const tmins = Object.values(d.models)
-        .map((m: any) => m.temp_min)
-        .filter((v): v is number => v != null);
-      const precs = Object.values(d.models)
-        .map((m: any) => m.precip_sum)
-        .filter((v): v is number => v != null);
+      const tmaxs: number[] = [];
+      const tmins: number[] = [];
+      const precs: number[] = [];
+      for (const m of Object.values(d.models) as any[]) {
+        if (m.temp_max != null) tmaxs.push(m.temp_max);
+        if (m.temp_min != null) tmins.push(m.temp_min);
+        if (m.precip_sum != null) precs.push(m.precip_sum);
+      }
       const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
       const spread = (xs: number[]) => (xs.length > 1 ? Math.max(...xs) - Math.min(...xs) : null);
       const round1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
