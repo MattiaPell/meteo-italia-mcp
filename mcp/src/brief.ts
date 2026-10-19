@@ -4,6 +4,7 @@ import { apiGet, toToolResult } from "./http.js";
 import { MeteoError } from "./errors.js";
 import { haversine } from "./geo.js";
 import { summarizeForecast } from "./summaries.js";
+import { summarizeEnsemble } from "./ensemble_probs.js";
 import { getWeights, macroareaFor, weightedMean, Macroarea } from "./model_tuning.js";
 import { normalizeModelId } from "./models.js";
 import { parseMetarStation } from "./italian_sources.js";
@@ -280,22 +281,22 @@ function processMetarResult(
 function processEnsembleResult(ensembleR: PromiseSettledResult<any>) {
   let ensemble: any = { status: sourceStatus(ensembleR) };
   if (ensembleR.status === "fulfilled" && ensembleR.value.ok) {
-    const h = (ensembleR.value.data as any)?.hourly ?? {};
-    const grab = (base: string) => {
-      const v = h[`${base}_ecmwf_ifs025_ensemble_mean`] ?? h[base];
-      return Array.isArray(v) ? v.filter((x: any) => typeof x === "number") : [];
-    };
-    const tSpread = grab("temperature_2m_spread");
-    const pMean = grab("precipitation");
-    const pSpread = grab("precipitation_spread");
+    const summary = summarizeEnsemble((ensembleR.value.data as any)?.hourly ?? {});
+    if (!summary) {
+      return { status: "errore", error: "ensemble senza membri utilizzabili" };
+    }
     ensemble = {
       status: "ok",
-      tempSpreadMaxC: tSpread.length ? Math.round(Math.max(...tSpread) * 10) / 10 : null,
-      precipMeanTotMm: pMean.length ? Math.round(pMean.reduce((a, b) => a + b, 0) * 10) / 10 : null,
-      precipSpreadMaxMm: pSpread.length ? Math.round(Math.max(...pSpread) * 10) / 10 : null,
-      modelli: ["ecmwf_ifs025_ensemble_mean"],
-      nota: "Solo ECMWF ha ensemble pubblico su Open-Meteo. ICON è deterministico.",
+      membri: summary.membri,
+      tempSpreadMaxC: summary.tempSpreadMaxC,
+      precipMeanTotMm: summary.precipMeanTotMm,
+      precipSpreadMaxMm: summary.precipSpreadMaxMm,
+      probabilita: summary.probabilita,
+      modelli: ["ecmwf_ifs025"],
+      nota: "Probabilità = quota di membri ECMWF ENS sopra soglia (pioggia ≥1/≥10 mm, Tmin ≤0°C, Tmax ≥35°C, raffica ≥60 km/h). Spread = deviazione standard tra i membri. ICON è deterministico.",
     };
+  } else if (ensembleR.status === "fulfilled") {
+    ensemble = { status: "errore", error: ensembleR.value?.error };
   }
   return ensemble;
 }
@@ -445,8 +446,8 @@ function fetchEnsembleData(lat: number, lon: number, days: number) {
   return apiGet("https://ensemble-api.open-meteo.com/v1/ensemble", {
     latitude: lat,
     longitude: lon,
-    models: ["ecmwf_ifs025_ensemble_mean"],
-    hourly: ["temperature_2m_spread", "precipitation", "precipitation_spread"],
+    models: ["ecmwf_ifs025"],
+    hourly: ["temperature_2m", "precipitation", "wind_gusts_10m"],
     timezone: "Europe/Rome",
     forecast_days: days,
   });
@@ -593,7 +594,7 @@ export function registerBrief(server: McpServer) {
     {
       title: "Brief Meteo Multi-Fonte (default per qualsiasi località italiana)",
       description:
-        "UNICO tool da chiamare per una richiesta meteo su una località italiana: aggrega in parallelo (1) previsione multi-modello Open-Meteo con consensus e spread, (2) allerte Protezione Civile per il comune, (3) stato radar DPC, (4) METAR delle 3 stazioni ICAO più vicine, (5) osservazioni/bollettino ARPA regionale quando disponibili (Veneto, Trentino, Marche, Lombardia, Friuli Venezia Giulia, Emilia-Romagna, Piemonte), (6) spread ensemble. Ogni fonte riporta il suo stato (ok/errore/non coperta) e le divergenze tra fonti sono calcolate automaticamente. Usa questo PRIMA di qualsiasi approfondimento con i tool singoli.",
+        "UNICO tool da chiamare per una richiesta meteo su una località italiana: aggrega in parallelo (1) previsione multi-modello Open-Meteo con consensus e spread, (2) allerte Protezione Civile per il comune, (3) stato radar DPC, (4) METAR delle 3 stazioni ICAO più vicine, (5) osservazioni/bollettino ARPA regionale quando disponibili (Veneto, Trentino, Marche, Lombardia, Friuli Venezia Giulia, Emilia-Romagna, Piemonte), (6) probabilità giornaliere da ensemble ECMWF (pioggia ≥1/≥10 mm, gelo, caldo estremo, raffica ≥60 km/h) e spread. Ogni fonte riporta il suo stato (ok/errore/non coperta) e le divergenze tra fonti sono calcolate automaticamente. Usa questo PRIMA di qualsiasi approfondimento con i tool singoli.",
       inputSchema: {
         nome: z
           .string()

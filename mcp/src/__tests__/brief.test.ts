@@ -102,16 +102,20 @@ const NWP_DIVERGENTE = {
 const ENSEMBLE_OK = {
   hourly: {
     time: ["2026-08-29T00:00", "2026-08-29T06:00"],
-    temperature_2m_spread_ecmwf_ifs025_ensemble_mean: [1, 2],
-    precipitation_ecmwf_ifs025_ensemble_mean: [0, 0.5],
-    precipitation_spread_ecmwf_ifs025_ensemble_mean: [0.2, 0.8],
+    temperature_2m: [10, 12],
+    temperature_2m_member01: [12, 16],
+    precipitation: [0, 0.5],
+    precipitation_member01: [0, 0.5],
+    wind_gusts_10m: [20, 30],
+    wind_gusts_10m_member01: [25, 70],
   },
 };
 
 const ENSEMBLE_DIVERGENTE = {
   hourly: {
     ...ENSEMBLE_OK.hourly,
-    temperature_2m_spread_ecmwf_ifs025_ensemble_mean: [3, 5.5],
+    temperature_2m: [10, 10],
+    temperature_2m_member01: [12, 21],
   },
 };
 
@@ -239,6 +243,10 @@ describe("runBrief — tutte le fonti ok", () => {
     expect(r.data.metar.stazioni[0].distKm).not.toBeNull();
     expect(r.data.ensemble.status).toBe("ok");
     expect(r.data.ensemble.tempSpreadMaxC).toBe(2);
+    expect(r.data.ensemble.membri).toBe(2);
+    expect(r.data.ensemble.probabilita).toEqual([
+      { data: "2026-08-29", pPioggia1mm: 0, pPioggia10mm: 0, pGelo: 0, pCaldoEstremo: 0, pRaffica60: 50 },
+    ]);
     expect(r.data.arpaRegionale.ok).toBe(true);
     expect(r.data.divergenze).toEqual([]);
     expect(r.data.errori).toEqual([]);
