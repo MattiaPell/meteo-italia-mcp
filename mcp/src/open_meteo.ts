@@ -55,9 +55,9 @@ export async function handleOpenMeteoGeocode({ name, count, language }: GeocodeP
   if (!r.ok) return toToolResult(r);
   const parsed = validateApiData(r, geocodeSchema, "Open-Meteo Geocoding");
   const results = parsed.results ?? [];
-  const itResults = results.filter((x: any) => x.country_code === "IT");
+  const itResults = results.filter((x) => x.country_code === "IT");
   const chosen = itResults[0] ?? null;
-  const candidates = itResults.map((x: any) => ({
+  const candidates = itResults.map((x) => ({
     name: x.name,
     admin1: x.admin1,
     admin2: x.admin2,
@@ -65,7 +65,7 @@ export async function handleOpenMeteoGeocode({ name, count, language }: GeocodeP
     lon: x.longitude,
     elevation: x.elevation,
   }));
-  const nonIt = results.find((x: any) => x.country_code !== "IT");
+  const nonIt = results.find((x) => x.country_code !== "IT");
   const enriched = {
     ...r,
     data: {
@@ -141,16 +141,22 @@ const LEVEL_2_HOURLY = [
   "boundary_layer_height",
 ];
 
-function checkTriggers(l1Data: any): boolean {
-  const codes = (l1Data?.hourly?.weather_code ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
-  const capes = (l1Data?.hourly?.cape ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
-  const precs = (l1Data?.hourly?.precipitation ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
-  const winds = (l1Data?.hourly?.wind_speed_10m ?? []).flatMap((a: any) => (Array.isArray(a) ? a : [a]));
+/** Appiattisce una serie oraria: con più modelli ogni elemento può essere a sua volta un array. */
+function flatSeries(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((a: unknown) => (Array.isArray(a) ? a : [a])).filter((x): x is number => typeof x === "number");
+}
+
+function checkTriggers(l1Data: { hourly?: Record<string, unknown> } | null | undefined): boolean {
+  const codes = flatSeries(l1Data?.hourly?.weather_code);
+  const capes = flatSeries(l1Data?.hourly?.cape);
+  const precs = flatSeries(l1Data?.hourly?.precipitation);
+  const winds = flatSeries(l1Data?.hourly?.wind_speed_10m);
   return (
-    codes.some((c: number) => c >= 80 && c <= 99) ||
-    capes.some((c: number) => c > 500) ||
-    precs.some((p: number) => p > 10) ||
-    winds.some((w: number) => w > 50)
+    codes.some((c) => c >= 80 && c <= 99) ||
+    capes.some((c) => c > 500) ||
+    precs.some((p) => p > 10) ||
+    winds.some((w) => w > 50)
   );
 }
 export async function handleOpenMeteoForecast({
@@ -180,7 +186,7 @@ export async function handleOpenMeteoForecast({
   });
   if (!l1.ok) return toToolResult(l1);
 
-  const l1Data = l1.data as any;
+  const l1Data = l1.data as { hourly?: Record<string, unknown> } | null;
   const triggered = checkTriggers(l1Data);
 
   let levelUsed: "1" | "2" | "3" = "1";

@@ -828,7 +828,7 @@ function getTourismData() {
 
 export async function handleReferenceGuidelines({ category }: { category: string }) {
   const start = Date.now();
-  let data: any = {};
+  let data: unknown = {};
 
   switch (category) {
     case "models":
