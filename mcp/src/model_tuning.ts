@@ -97,6 +97,48 @@ export function getWeights(macroarea: string): Record<string, number> {
   return matchedWeights;
 }
 
+export type Macroarea =
+  | "nord_ovest"
+  | "nord_est"
+  | "centro_nord"
+  | "centro"
+  | "sud"
+  | "sicilia"
+  | "sardegna"
+  | "costa_adriatica"
+  | "alpi"
+  | "appennino";
+
+/** Macroarea euristica da coordinate + quota (bounding box grossolani, non confini amministrativi). */
+export function macroareaFor(lat: number, lon: number, elevation?: number): Macroarea {
+  const elev = elevation ?? 0;
+  if (lat < 38.9 && lon >= 12 && lon <= 15.7) return "sicilia";
+  if (lat >= 38.8 && lat <= 41.4 && lon >= 8 && lon <= 9.9) return "sardegna";
+  if (lat >= 45.5 && elev >= 1200) return "alpi";
+  if (lat >= 37.5 && lat < 44.6 && elev >= 700) return "appennino";
+  if (lat >= 44.6) return lon < 10 ? "nord_ovest" : "nord_est";
+  if (lat >= 41.8 && lon >= (lat >= 43.5 ? 12.4 : 13)) return "costa_adriatica";
+  if (lat >= 43.7) return "centro_nord";
+  if (lat >= 41.5) return "centro";
+  return "sud";
+}
+
+/**
+ * Media pesata dei valori per modello. I modelli senza peso nella tabella
+ * pesano 1.0, così un modello non catalogato contribuisce comunque.
+ */
+export function weightedMean(values: Record<string, number | null | undefined>, weights: Record<string, number>) {
+  let num = 0;
+  let den = 0;
+  for (const [model, v] of Object.entries(values)) {
+    if (v == null) continue;
+    const w = weights[normalizeModelId(model)] ?? 1;
+    num += v * w;
+    den += w;
+  }
+  return den > 0 ? num / den : null;
+}
+
 export function getBiases(
   modelId?: string,
 ): Array<{ model: string; zone: string; bias: string; entity: string; note: string }> {

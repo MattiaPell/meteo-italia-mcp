@@ -4,6 +4,8 @@ import { apiGet, toToolResult } from "./http.js";
 import { MeteoError } from "./errors.js";
 import { haversine } from "./geo.js";
 import { summarizeForecast } from "./summaries.js";
+import { getWeights, macroareaFor, weightedMean, Macroarea } from "./model_tuning.js";
+import { normalizeModelId } from "./models.js";
 import { parseMetarStation } from "./italian_sources.js";
 import { fetchLatestBulletin, fetchRadarLatest, filterZones, maxLevel } from "./dpc.js";
 import { runBriefArpa as arpaVeneto } from "./regioni/arpav.js";
@@ -116,7 +118,14 @@ export async function runBrief(
   }
 }
 
-function processNwpResult(nwpR: PromiseSettledResult<any>, chosenModels: string[], days: number, errori: string[]) {
+function processNwpResult(
+  nwpR: PromiseSettledResult<any>,
+  chosenModels: string[],
+  days: number,
+  errori: string[],
+  macroarea: Macroarea,
+) {
+  const pesi = getWeights(macroarea);
   let nwp: any = { status: sourceStatus(nwpR) };
   if (nwpR.status === "fulfilled" && nwpR.value.ok) {
     const raw = nwpR.value.data as any;
@@ -125,6 +134,8 @@ function processNwpResult(nwpR: PromiseSettledResult<any>, chosenModels: string[
       const tmaxs: number[] = [];
       const tmins: number[] = [];
       const precs: number[] = [];
+      const byModel = (sel: (m: any) => number | undefined) =>
+        Object.fromEntries(Object.entries(d.models).map(([k, m]) => [k, sel(m)]));
       for (const m of Object.values(d.models) as any[]) {
         if (m.temp_max != null) tmaxs.push(m.temp_max);
         if (m.temp_min != null) tmins.push(m.temp_min);
@@ -137,8 +148,26 @@ function processNwpResult(nwpR: PromiseSettledResult<any>, chosenModels: string[
         data: d.date,
         tmaxMedia: round1(mean(tmaxs)),
         tmaxSpread: round1(spread(tmaxs)),
+        tmaxPesata: round1(
+          weightedMean(
+            byModel((m) => m.temp_max),
+            pesi,
+          ),
+        ),
         tminMedia: round1(mean(tmins)),
+        tminPesata: round1(
+          weightedMean(
+            byModel((m) => m.temp_min),
+            pesi,
+          ),
+        ),
         precipMediaMm: round1(mean(precs)),
+        precipPesataMm: round1(
+          weightedMean(
+            byModel((m) => m.precip_sum),
+            pesi,
+          ),
+        ),
         precipMaxMm: round1(precs.length ? Math.max(...precs) : null),
         modelli: Object.fromEntries(
           Object.entries(d.models).map(([k, m]: [string, any]) => [
@@ -153,6 +182,8 @@ function processNwpResult(nwpR: PromiseSettledResult<any>, chosenModels: string[
     nwp = {
       status: "ok",
       modelli: chosenModels,
+      macroarea,
+      pesi: Object.fromEntries(chosenModels.map((k) => [k, pesi[normalizeModelId(k)] ?? 1])),
       giorni: perDay,
       scoreOggi: perDay[0]?.score ?? null,
       flagsOggi: perDay[0]?.flags ?? [],
@@ -480,7 +511,7 @@ function runBriefCore({
       arpaTask,
     ]);
 
-    const nwp = processNwpResult(nwpR, chosenModels, days, errori);
+    const nwp = processNwpResult(nwpR, chosenModels, days, errori, macroareaFor(lat!, lon!, elevation ?? undefined));
 
     const allerte = processAllerteResult(allerteR, comune, regioneEff, errori);
 

@@ -80,7 +80,8 @@ prima di ogni analisi.
 Il tool centrale è **`meteo_brief`**: per qualsiasi località italiana aggrega in una
 sola chiamata NWP multi-modello, allerte Protezione Civile per il comune, radar DPC,
 METAR delle stazioni più vicine, osservazioni ARPA regionali (dove coperte) e spread
-ensemble — con le divergenze tra fonti già calcolate. Il confronto multi-fonte è il
+ensemble — con le divergenze tra fonti già calcolate. Il consensus NWP è
+pesato per macroarea (`tmaxPesata`, `tminPesata`, `precipPesataMm`) oltre alla media semplice. Il confronto multi-fonte è il
 default, non un'opzione.
 
 ### Installazione rapida
@@ -133,7 +134,7 @@ METEO_MCP_DEBUG_PORT=3000 node mcp/dist/index.js
 
 | Tool | Servizio | Tipo |
 |---|---|---|
-| `meteo_brief` | **Aggregatore multi-fonte** (NWP + PC + radar + METAR + ARPA + ensemble) | API |
+| `meteo_brief` | **Aggregatore multi-fonte** (NWP pesato per macroarea + PC + radar + METAR + ARPA + ensemble) | API |
 | `open_meteo_geocode` | Open-Meteo Geocoding | API |
 | `open_meteo_forecast` | Open-Meteo Forecast (raw) | API |
 | `open_meteo_forecast_summary` | Open-Meteo Forecast (compact, ~85% meno contesto) | API |
