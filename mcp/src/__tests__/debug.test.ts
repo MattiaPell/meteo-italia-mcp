@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { startDebugServer } from "../debug.js";
 
 describe("Debug Server Security", () => {
@@ -46,5 +46,32 @@ describe("Debug Server Security", () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBe("unknown service: toString");
+  });
+
+
+  it("should serve HTML page on GET /", async () => {
+    const res = await fetch(`${baseUrl}/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("Meteo Italia MCP");
+  });
+
+  it("should handle EADDRINUSE gracefully", async () => {
+    const portInUse = port; // This port is already in use by the beforeAll setup
+    const server2 = startDebugServer(portInUse);
+
+    // Simulate error since the real bind might take time or randomly succeed on another port depending on OS
+    const errObj = new Error("EADDRINUSE");
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Emit the error manually to ensure the listener works
+    server2.emit("error", errObj);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("debug page unavailable"));
+
+    // Ensure we close the second server to not leak
+    server2.close();
+    consoleErrorSpy.mockRestore();
   });
 });
