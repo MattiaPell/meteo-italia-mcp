@@ -25,11 +25,15 @@ import {
 } from "./reference_tools.js";
 import { startDebugServer } from "./debug.js";
 import { DEBUG_PORT } from "./http.js";
+import { SERVER_INSTRUCTIONS, registerPrompts } from "./instructions.js";
 
-const server = new McpServer({
-  name: "meteo-italia-mcp-server",
-  version: "1.0.0",
-});
+const server = new McpServer(
+  {
+    name: "meteo-italia-mcp-server",
+    version: "1.0.0",
+  },
+  { instructions: SERVER_INSTRUCTIONS },
+);
 
 registerOpenMeteo(server);
 registerItalianSources(server);
@@ -52,6 +56,7 @@ registerReferenceGuidelines(server);
 registerVerification(server);
 registerYearCompare(server);
 registerPollen(server);
+registerPrompts(server);
 
 // Stdio transport for MCP clients.
 const transport = new StdioServerTransport();
