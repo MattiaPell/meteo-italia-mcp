@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import { handleClimatology, registerClimatology } from "../climatology.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 
-function makeClient(server: McpServer) {
+function makeClient(_server: McpServer) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
   const client = new Client(
