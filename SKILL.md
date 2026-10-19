@@ -36,7 +36,7 @@ Le chiamate alle API esterne e le basi di conoscenza meteorologiche sono esposte
 
 | Step | Nome / Servizio | Tool MCP Principale |
 |---|---|---|
-| **0** | **Aggregatore Multi-Fonte** | `meteo_brief` (NWP + allerte PC + radar + METAR + ARPA + ensemble) |
+| **0** | **Aggregatore Multi-Fonte** | `meteo_brief` (NWP pesato per macroarea + allerte PC + radar + METAR + ARPA + ensemble) |
 | **Geocoding** | Risoluzione coordinate | `open_meteo_geocode` (filtro `country_code == 'IT'`) |
 | **Step A** | Previsioni numeriche (NWP) | `open_meteo_forecast` / `open_meteo_forecast_summary` |
 | **Step B** | Climatologia ERA5 | `meteo_climatology` / `open_meteo_archive` |
@@ -96,7 +96,7 @@ Esegui il workflow in 3 Tier. Completa il **TIER 1** prima di procedere al **TIE
 
 ### 4. Analisi Comparativa & Raffinamenti (Dettagli in `references/mcp_reference.md`)
 
--   **Consensus multi-modello**: Applica i pesi di `meteo_model_tuning` per la macroarea corrente.
+-   **Consensus multi-modello**: `meteo_brief` calcola già il consensus pesato per macroarea (`nwp.macroarea`, `nwp.pesi`, `tmaxPesata`/`tminPesata`/`precipPesataMm`): usa quelli, non rifare la media. `meteo_model_tuning` serve solo per bias e scenari dinamici.
 -   **Effetto Isola di Calore (UHI)**: Correggi le temperature minime/massime dei grandi centri urbani in condizioni ottimali via `meteo_model_tuning`.
 -   **Quota Neve Nimbus**: Calcola il limite dell'accumulo nevoso con la formula di omotermia umida ed intensità precipitativa via `meteo_bioclimatic_indices`.
 -   **Rischio Incendi (NFR)**: Valuta le condizioni fisiche di accensione tramite VPD, vento e umidità del suolo via `meteo_bioclimatic_indices`.

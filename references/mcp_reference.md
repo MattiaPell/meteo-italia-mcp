@@ -46,14 +46,14 @@ Questo è l'unico file di riferimento consolidato per il server MCP di **Meteo I
 ## 2. Calibrazione, Pesi e Bias dei Modelli
 *   **Tool core**: `meteo_model_tuning` / `meteo_verification`
 *   **Weights per Macroarea**:
-    *   *Nord-Ovest*: Priorità a `icon_d2` (1.4), `ecmwf_ifs` (1.3), `meteoswiss_icon_seamless` (1.3), `italia_meteo_arpae_icon_2i` (1.2).
-    *   *Nord-Est*: Priorità a `italia_meteo_arpae_icon_2i` (1.5), `icon_d2` (1.4), `ecmwf_ifs` (1.2).
-    *   *Centro-Nord*: Priorità a `italia_meteo_arpae_icon_2i` (1.5), `ecmwf_ifs` (1.3).
-    *   *Centro / Sud / Isole*: `ecmwf_ifs` (1.5-1.6) come backbone assoluto.
+    *   *Nord-Ovest*: Priorità a `icon_d2` (1.4), `ecmwf_ifs025` (1.3), `meteoswiss_icon_seamless` (1.3), `italia_meteo_arpae_icon_2i` (1.2).
+    *   *Nord-Est*: Priorità a `italia_meteo_arpae_icon_2i` (1.5), `icon_d2` (1.4), `ecmwf_ifs025` (1.2).
+    *   *Centro-Nord*: Priorità a `italia_meteo_arpae_icon_2i` (1.5), `ecmwf_ifs025` (1.3).
+    *   *Centro / Sud / Isole*: `ecmwf_ifs025` (1.5-1.6) come backbone assoluto.
 *   **UHI (Urban Heat Island)**: Correzione termica per i centri urbani in notti serene e con vento calmo: Milano (+2.5°C Tmin), Roma (+2.0°C Tmin), Torino (+2.0°C Tmin), Firenze (+2.5°C Tmin), Bari (+4.0°C Tmin), Palermo (+2.5°C Tmin).
 *   **Bias noti**:
     *   `italia_meteo_arpae_icon_2i` tende ad anticipare le piogge di 1-3 ore sul versante adriatico e a sovrastimare la pioggia orografica (+20-40%) sulle Prealpi venete e Appennino emiliano. Eccelle nel risolvere le nebbie padane.
-    *   `ecmwf_ifs` tende a smussare i picchi precipitativi convettivi estremi (-10-20%) ma individua in anticipo le ondate di calore.
+    *   `ecmwf_ifs025` tende a smussare i picchi precipitativi convettivi estremi (-10-20%) ma individua in anticipo le ondate di calore.
     *   `gfs_seamless` sovrastima l'intensità dello Scirocco al Sud ed ha un bias caldo estivo (+1-2°C).
 
 ---

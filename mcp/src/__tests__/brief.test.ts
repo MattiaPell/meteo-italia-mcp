@@ -225,6 +225,9 @@ describe("runBrief — tutte le fonti ok", () => {
     expect(r.data.nwp.giorni).toHaveLength(1);
     expect(r.data.nwp.giorni[0].tmaxMedia).toBe(30);
     expect(r.data.nwp.giorni[0].tmaxSpread).toBe(0);
+    expect(r.data.nwp.macroarea).toBe("nord_ovest");
+    expect(r.data.nwp.pesi).toEqual({ ecmwf_ifs025: 1.3, icon_seamless: 1.0 });
+    expect(r.data.nwp.giorni[0].tmaxPesata).toBe(30);
     expect(r.data.allerte.matching).toBe("comune");
     expect(r.data.allerte.comuneTrovato).toBe(true);
     // livelli tutti 0 nel caso pulito: nessuna allerta, nessuna divergenza

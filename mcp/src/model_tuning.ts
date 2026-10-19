@@ -9,7 +9,7 @@ export function getWeights(macroarea: string): Record<string, number> {
   const weights: Record<string, Record<string, number>> = {
     nord_ovest: {
       icon_d2: 1.4,
-      ecmwf_ifs: 1.3,
+      ecmwf_ifs025: 1.3,
       meteoswiss_icon_seamless: 1.3,
       italia_meteo_arpae_icon_2i: 1.2,
       icon_seamless: 1.0,
@@ -19,7 +19,7 @@ export function getWeights(macroarea: string): Record<string, number> {
     nord_est: {
       italia_meteo_arpae_icon_2i: 1.5,
       icon_d2: 1.4,
-      ecmwf_ifs: 1.2,
+      ecmwf_ifs025: 1.2,
       meteoswiss_icon_seamless: 1.2,
       geosphere_seamless: 1.1,
       icon_seamless: 1.0,
@@ -27,14 +27,14 @@ export function getWeights(macroarea: string): Record<string, number> {
     },
     centro_nord: {
       italia_meteo_arpae_icon_2i: 1.5,
-      ecmwf_ifs: 1.3,
+      ecmwf_ifs025: 1.3,
       icon_eu: 1.1,
       icon_seamless: 1.0,
       meteofrance_seamless: 0.9,
       gfs_seamless: 0.7,
     },
     centro: {
-      ecmwf_ifs: 1.5,
+      ecmwf_ifs025: 1.5,
       meteofrance_seamless: 1.2,
       icon_seamless: 1.1,
       arpege_europe: 1.0,
@@ -42,7 +42,7 @@ export function getWeights(macroarea: string): Record<string, number> {
       gfs_seamless: 0.8,
     },
     sud: {
-      ecmwf_ifs: 1.5,
+      ecmwf_ifs025: 1.5,
       ecmwf_aifs025: 1.2,
       arpege_europe: 1.2,
       gfs_seamless: 1.0,
@@ -50,14 +50,14 @@ export function getWeights(macroarea: string): Record<string, number> {
       meteofrance_seamless: 0.9,
     },
     sicilia: {
-      ecmwf_ifs: 1.6,
+      ecmwf_ifs025: 1.6,
       ecmwf_aifs025: 1.3,
       arpege_europe: 1.2,
       gfs_seamless: 1.0,
       meteofrance_seamless: 0.8,
     },
     sardegna: {
-      ecmwf_ifs: 1.5,
+      ecmwf_ifs025: 1.5,
       ecmwf_aifs025: 1.3,
       meteofrance_seamless: 1.2,
       arpege_europe: 1.0,
@@ -66,7 +66,7 @@ export function getWeights(macroarea: string): Record<string, number> {
     costa_adriatica: {
       italia_meteo_arpae_icon_2i: 1.4,
       icon_d2: 1.3,
-      ecmwf_ifs: 1.2,
+      ecmwf_ifs025: 1.2,
       knmi_seamless: 1.1,
       icon_seamless: 1.0,
       gfs_seamless: 0.8,
@@ -74,13 +74,13 @@ export function getWeights(macroarea: string): Record<string, number> {
     alpi: {
       icon_d2: 1.5,
       meteoswiss_icon_seamless: 1.4,
-      ecmwf_ifs: 1.2,
+      ecmwf_ifs025: 1.2,
       geosphere_seamless: 1.2,
       italia_meteo_arpae_icon_2i: 1.1,
       icon_seamless: 0.9,
     },
     appennino: {
-      ecmwf_ifs: 1.4,
+      ecmwf_ifs025: 1.4,
       icon_eu: 1.2,
       italia_meteo_arpae_icon_2i: 1.0,
       icon_seamless: 1.0,
@@ -95,6 +95,48 @@ export function getWeights(macroarea: string): Record<string, number> {
     matchedWeights[normalizeModelId(model)] = w;
   }
   return matchedWeights;
+}
+
+export type Macroarea =
+  | "nord_ovest"
+  | "nord_est"
+  | "centro_nord"
+  | "centro"
+  | "sud"
+  | "sicilia"
+  | "sardegna"
+  | "costa_adriatica"
+  | "alpi"
+  | "appennino";
+
+/** Macroarea euristica da coordinate + quota (bounding box grossolani, non confini amministrativi). */
+export function macroareaFor(lat: number, lon: number, elevation?: number): Macroarea {
+  const elev = elevation ?? 0;
+  if (lat < 38.9 && lon >= 12 && lon <= 15.7) return "sicilia";
+  if (lat >= 38.8 && lat <= 41.4 && lon >= 8 && lon <= 9.9) return "sardegna";
+  if (lat >= 45.5 && elev >= 1200) return "alpi";
+  if (lat >= 37.5 && lat < 44.6 && elev >= 700) return "appennino";
+  if (lat >= 44.6) return lon < 10 ? "nord_ovest" : "nord_est";
+  if (lat >= 41.8 && lon >= (lat >= 43.5 ? 12.4 : 13)) return "costa_adriatica";
+  if (lat >= 43.7) return "centro_nord";
+  if (lat >= 41.5) return "centro";
+  return "sud";
+}
+
+/**
+ * Media pesata dei valori per modello. I modelli senza peso nella tabella
+ * pesano 1.0, così un modello non catalogato contribuisce comunque.
+ */
+export function weightedMean(values: Record<string, number | null | undefined>, weights: Record<string, number>) {
+  let num = 0;
+  let den = 0;
+  for (const [model, v] of Object.entries(values)) {
+    if (v == null) continue;
+    const w = weights[normalizeModelId(model)] ?? 1;
+    num += v * w;
+    den += w;
+  }
+  return den > 0 ? num / den : null;
 }
 
 export function getBiases(
@@ -130,14 +172,14 @@ export function getBiases(
       note: "Cattura perfettamente l'inversione termica",
     },
     {
-      model: "ecmwf_ifs",
+      model: "ecmwf_ifs025",
       zone: "Tutto il territorio",
       bias: "Tende a smussare precipitazioni intense",
       entity: "-10-20% sui picchi",
       note: "Eccelle nelle tendenze ma sottostima i picchi convettivi estremi",
     },
     {
-      model: "ecmwf_ifs",
+      model: "ecmwf_ifs025",
       zone: "Centro-Sud",
       bias: "Anticipa ondate di calore",
       entity: "12-24h",
@@ -250,11 +292,11 @@ export async function handleModelTuning({
       uhiCorrection: uhiApplied,
       dynamicWeightingScenarios: {
         convective:
-          "Se CAPE > 500 o weather_code 80-99, aumenta peso (+0.3) di icon_d2, arome_france, italia_meteo_arpae_icon_2i; riduci gfs_seamless, ecmwf_ifs.",
-        frontal: "Se pioggia diffusa, aumenta peso (+0.3) di ecmwf_ifs, arpege_europe.",
+          "Se CAPE > 500 o weather_code 80-99, aumenta peso (+0.3) di icon_d2, arome_france, italia_meteo_arpae_icon_2i; riduci gfs_seamless, ecmwf_ifs025.",
+        frontal: "Se pioggia diffusa, aumenta peso (+0.3) di ecmwf_ifs025, arpege_europe.",
         fog: "Se nebbia padana, aumenta peso (+0.4) di italia_meteo_arpae_icon_2i; riduci gfs_seamless (-0.3).",
         orographic_wind:
-          "Se Bora/Foehn, aumenta peso (+0.3) di icon_d2, meteoswiss_icon_seamless; riduci ecmwf_ifs (-0.2).",
+          "Se Bora/Foehn, aumenta peso (+0.3) di icon_d2, meteoswiss_icon_seamless; riduci ecmwf_ifs025 (-0.2).",
         snow: "Se nevicate, aumenta peso (+0.4) di icon_d2, meteoswiss_icon_seamless, geosphere_seamless; riduci gfs_seamless (-0.2).",
       },
     },
@@ -299,7 +341,7 @@ export function registerModelTuning(server: McpServer) {
           .string()
           .optional()
           .describe(
-            "Filter biases for a specific model (e.g. ecmwf_ifs, icon_d2, italia_meteo_arpae_icon_2i, gfs_seamless)",
+            "Filter biases for a specific model (e.g. ecmwf_ifs025, icon_d2, italia_meteo_arpae_icon_2i, gfs_seamless)",
           ),
       },
       outputSchema: { ok: z.boolean(), url: z.string(), status: z.number(), data: z.unknown(), elapsedMs: z.number() },
