@@ -9,7 +9,7 @@ export function registerLocalPhenomena(server: McpServer) {
     {
       title: "Riconoscimento Fenomeni Locali Italiani",
       description:
-        "Run algorithmic checks on hourly weather forecast parameters to automatically identify typical Italian phenomena (Bora, Foehn, Scirocco, Nebbia Padana, Gelicidio, etc.).",
+        "Riconosce i fenomeni locali tipici italiani (Bora, Foehn, Scirocco, Nebbia Padana, Gelicidio, grandine padana, ecc.) da parametri orari di previsione. Usalo dopo meteo_brief quando vento, nebbia o ghiaccio sono rilevanti per la domanda.",
       inputSchema: {
         latitude: z.coerce.number().min(-90).max(90).describe("Latitude of target"),
         longitude: z.coerce.number().min(-180).max(180).describe("Longitude of target"),

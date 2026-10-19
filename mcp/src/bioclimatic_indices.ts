@@ -601,7 +601,7 @@ export function registerBioclimaticIndices(server: McpServer) {
     {
       title: "Indici Bioclimatici e Soglie Agricole",
       description:
-        "Calculate various indices (Heat Index, Wind Chill, Growing Degree Days GDD, Bilancio Idrico Nimbus) and verify agrometeorological or use case thresholds (Vite, Olivo, Api, Eolico, Solare, Beach/Ski indexes, Snow-Line Quota Neve, and Nimbus Fire Risk).",
+        "Indici e soglie per contesti specifici, da usare dopo meteo_brief: salute/comfort (Heat Index, Wind Chill, THI bestiame), agricoltura (GDD, bilancio idrico, gelate, peronospora vite, olivo, api), montagna (quota neve, Ski Index, AINEVA), mare/turismo (Beach Index), energia (eolico, solare), rischio incendi (VPD, Nimbus Fire). Passa temperatura, umidità, vento e gli altri valori presi dal brief.",
       inputSchema: {
         tempC: z.coerce.number().describe("Air temperature in °C"),
         relativeHumidity: z.coerce.number().min(0).max(100).optional().describe("Relative humidity in %"),
