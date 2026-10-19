@@ -2,7 +2,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { toToolResult, ApiResult } from "./http.js";
 import { getDistance } from "./geo.js";
-import { climatologyData } from "./climatology_data.js";
+import { climatologyData, ClimatologyStation } from "./climatology_data.js";
 
 // --- 1. CLIMATOLOGY TOOL ----------------------------------------------------
 
@@ -16,9 +16,9 @@ export interface ClimatologyArgs {
 
 export async function handleClimatology({ latitude, longitude, cityName, region, month }: ClimatologyArgs) {
   const start = Date.now();
-  let matchedCity: any = null;
+  let matchedCity: (ClimatologyStation & { region: string; distanceKm: number }) | null = null;
   let minDistance = Infinity;
-  let results: any[] = [];
+  let results: Array<ClimatologyStation & { region: string; distanceKm?: number }> = [];
 
   const keys = Object.keys(climatologyData);
   const searchRegion = region ? region.toLowerCase() : undefined;

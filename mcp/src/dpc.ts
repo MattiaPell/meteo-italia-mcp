@@ -82,17 +82,32 @@ export function extractZoneRegionMap(html: string): Map<string, string> {
   return map;
 }
 
-function parseZoneGeojson(fc: any, regionByZone: Map<string, string>): BulletinZone[] {
+interface BulletinMeta {
+  name?: string;
+  date?: string;
+  today?: { html_descrition?: unknown };
+  tomorrow?: { html_descrition?: unknown };
+}
+
+interface ZoneFeature {
+  properties?: Record<string, unknown>;
+}
+
+function parseZoneGeojson(
+  fc: { features?: ZoneFeature[] } | null | undefined,
+  regionByZone: Map<string, string>,
+): BulletinZone[] {
   const features = fc?.features ?? [];
   const zones: BulletinZone[] = [];
   for (const f of features) {
-    const p = f?.properties ?? {};
+    const p: Record<string, unknown> = f?.properties ?? {};
     const zona = String(p["Nome zona"] ?? "");
     if (!zona) continue;
     const tIdr = String(p["Per rischio idraulico"] ?? "");
     const tTemp = String(p["Per rischio temporali"] ?? "");
     const tGeo = String(p["Per rischio idrogeologico"] ?? "");
-    const comuniArray = Array.isArray(p["Comuni"]) ? p["Comuni"].map(String) : [];
+    const comuni = p["Comuni"];
+    const comuniArray = Array.isArray(comuni) ? comuni.map(String) : [];
     zones.push({
       zona,
       regione: regionByZone.get(normalizeName(zona)) ?? null,
@@ -115,7 +130,7 @@ async function resolveLatestStamp(): Promise<string | null> {
   const tree = await apiGet(`${GITHUB_API}/git/trees/master`, { recursive: "1" });
   if (!tree.ok) return null;
   const stamps: string[] = [];
-  for (const node of (tree.data as any)?.tree ?? []) {
+  for (const node of (tree.data as { tree?: Array<{ path?: string }> } | null)?.tree ?? []) {
     const p: string = node?.path ?? "";
     const m = p.match(/^files\/(\d{8}_\d{4})\.json$/);
     if (m) stamps.push(m[1]);
@@ -150,9 +165,9 @@ export async function fetchLatestBulletin(): Promise<BulletinResult> {
       error: `Bollettino ${stamp} non raggiungibile (HTTP ${meta.status})`,
     };
   }
-  const metaData = meta.data as any;
+  const metaData = meta.data as BulletinMeta | null;
   const regionByZone = new Map<string, string>();
-  for (const day of ["today", "tomorrow"]) {
+  for (const day of ["today", "tomorrow"] as const) {
     const html = metaData?.[day]?.html_descrition;
     if (typeof html === "string") {
       for (const [z, r] of extractZoneRegionMap(html)) {
@@ -172,7 +187,7 @@ export async function fetchLatestBulletin(): Promise<BulletinResult> {
   const results = await Promise.all(days.map((day) => apiGet(`${GITHUB_RAW}/geojson/${stamp}_${day}.json`, {})));
   days.forEach((day, i) => {
     const gj = results[i];
-    if (gj.ok) out[day] = parseZoneGeojson(gj.data, regionByZone);
+    if (gj.ok) out[day] = parseZoneGeojson(gj.data as { features?: ZoneFeature[] } | null, regionByZone);
   });
   if (!out.today.length && !out.tomorrow.length) {
     out.ok = false;
@@ -265,7 +280,7 @@ export async function fetchRadarLatest(product: string): Promise<RadarLatest> {
   if (!r.ok) {
     return { ok: false, product, time: null, timeIso: null, period: null, ageMinutes: null, error: r.error };
   }
-  const last = (r.data as any)?.lastProducts?.[0];
+  const last = (r.data as { lastProducts?: Array<{ time?: unknown; period?: string }> } | null)?.lastProducts?.[0];
   const time = typeof last?.time === "number" ? last.time : null;
   return {
     ok: time != null,
@@ -361,7 +376,7 @@ export async function handleDpcRadar({ product, download }: { product: string; d
   if (download && latest.time != null) {
     const dl = await fetchRadarDownload(product, latest.time);
     if (dl.ok) {
-      const d = dl.data as any;
+      const d = dl.data as { url?: string; key?: string; expiresSeconds?: number } | null;
       downloadData = {
         url: d?.url ?? null,
         key: d?.key ?? null,

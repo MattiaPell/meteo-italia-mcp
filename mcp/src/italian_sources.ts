@@ -217,8 +217,13 @@ export async function handleDmiLightning({
     observed: observed_after,
   });
   if (!r.ok) return toToolResult(r);
-  const fc = (r.data as any)?.features ?? [];
-  const strikes = fc.map((f: any) => {
+  const fc =
+    (
+      r.data as {
+        features?: Array<{ geometry?: { coordinates?: number[] }; properties?: { observed?: string } }>;
+      } | null
+    )?.features ?? [];
+  const strikes = fc.map((f) => {
     const [lonS, latS] = f.geometry?.coordinates ?? [];
     const observed = f.properties?.observed ?? null;
     const hour = observed ? new Date(observed).getUTCHours() : null;
@@ -233,7 +238,7 @@ export async function handleDmiLightning({
   for (const s of strikes) if (s.hour != null) byHour[s.hour] = (byHour[s.hour] ?? 0) + 1;
   const nearest =
     lat != null
-      ? (strikes.filter((s: any) => s.distKm != null).sort((a: any, b: any) => a.distKm - b.distKm)[0] ?? null)
+      ? (strikes.filter((s) => s.distKm != null).sort((a, b) => (a.distKm ?? 0) - (b.distKm ?? 0))[0] ?? null)
       : null;
   return toToolResult({
     ...r,

@@ -112,7 +112,7 @@ export async function handlePollenRequest({
   const month = new Date().getMonth() + 1;
   const isNord = latitude > 44.0;
 
-  const activeAllergens: any[] = [];
+  const activeAllergens: Array<{ pollen: string; estimatedLevel: number; risk: string; isPeak: boolean }> = [];
   for (let i = 0; i < POLLEN_CALENDAR.length; i++) {
     const item = POLLEN_CALENDAR[i];
     const pollen = item.pollen;
