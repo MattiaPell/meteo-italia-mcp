@@ -9,7 +9,7 @@ function makeClient(server: McpServer) {
 
   const client = new Client(
     { name: "test-client", version: "1.0.0" },
-    { capabilities: { tools: {} } }
+    { capabilities: {} }
   );
 
   return { client, serverTransport, clientTransport };
