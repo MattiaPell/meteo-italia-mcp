@@ -347,9 +347,9 @@ describe("formatGiorno (ARPAE)", () => {
     const g = formatGiorno("oggi", data);
     expect(g).toHaveProperty("validita", "2026-07-21");
     expect(g).toHaveProperty("emissione", "2026-07-21T12:00:00");
-    expect((g as any).regionale.cielo).toBe("Sereno");
-    expect((g as any).dati_tabellari.costa.tmin).toBe(20);
-    expect((g as any).provinciale.BO.testo).toBe("Sereno");
+    expect(g.regionale?.cielo).toBe("Sereno");
+    expect(g.dati_tabellari?.costa.tmin).toBe(20);
+    expect(g.provinciale?.BO.testo).toBe("Sereno");
   });
 
   it("returns empty object for missing day", () => {

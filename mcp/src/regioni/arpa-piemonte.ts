@@ -50,7 +50,7 @@ let cachedStationsTime = 0;
 
 async function getStationsCached(): Promise<{ ok: boolean; error?: string; stations: ArpaPiemonteStation[] }> {
   if (cachedStations && Date.now() - cachedStationsTime < 3600000) {
-    return { ok: true, stations: cachedStations };
+    return { ok: true, stations: cachedStations! };
   }
   const r = await apiGet(`${API_BASE}/meteoidro/stazione_meteorologica/`, { limit: 500, format: "json" });
   if (!r.ok) return { ok: false, error: r.error, stations: [] };

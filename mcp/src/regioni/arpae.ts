@@ -17,8 +17,39 @@ type Provincia = (typeof PROVINCE)[number];
 /** Giorni disponibili nel bollettino. */
 const GIORNI = ["oggi", "domani", "dopodomani", "quartogiorno"] as const;
 
+export interface ArpaeGiorno {
+  validita?: string;
+  emissione?: string;
+  regionale?: {
+    cielo?: string | null;
+    temperatura?: string | null;
+    vento?: string | null;
+    mare?: string | null;
+  };
+  dati_tabellari?: Record<
+    string,
+    {
+      tmin?: number | null;
+      tmax?: number | null;
+      precipitazioni?: string | null;
+    }
+  >;
+  provinciale?: Record<
+    string,
+    {
+      testo?: string | null;
+      tmin?: number | null;
+      tmax?: number | null;
+      precipitazioni?: string | null;
+      vento?: string | null;
+      vento_max?: string | null;
+      temperatura?: string | null;
+    }
+  >;
+}
+
 /** Estrai il testo regionale o provinciale in formato compatto. */
-export function formatGiorno(day: string, data: any): Record<string, unknown> {
+export function formatGiorno(day: string, data: any): ArpaeGiorno {
   const b = data?.[day]?.bollettino;
   if (!b) return {};
 
@@ -26,7 +57,7 @@ export function formatGiorno(day: string, data: any): Record<string, unknown> {
   const tabellare = b.regionale?.dati_tabellari;
   const provinciale = b.provinciale;
 
-  const out: Record<string, unknown> = {
+  const out: ArpaeGiorno = {
     validita: b.validita,
     emissione: b.emissione,
   };
@@ -41,7 +72,7 @@ export function formatGiorno(day: string, data: any): Record<string, unknown> {
   }
 
   if (tabellare) {
-    const tbl: Record<string, unknown> = {};
+    const tbl: NonNullable<ArpaeGiorno["dati_tabellari"]> = {};
     for (const area of ["costa", "pianura", "rilievi"] as const) {
       const a = tabellare[area];
       if (a) {
@@ -56,7 +87,7 @@ export function formatGiorno(day: string, data: any): Record<string, unknown> {
   }
 
   if (provinciale) {
-    const prov: Record<string, unknown> = {};
+    const prov: NonNullable<ArpaeGiorno["provinciale"]> = {};
     for (const p of PROVINCE) {
       const pp = provinciale[p];
       if (pp) {
