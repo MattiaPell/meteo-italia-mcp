@@ -54,8 +54,8 @@ export function registerYearCompare(server: McpServer) {
       }
 
       const { daily, diffs, cPrecip, lPrecip, cDates, lDates } = calculateDifferences(
-        currentRes.data,
-        lastYearRes.data,
+        currentRes.data as OpenMeteoResponse,
+        lastYearRes.data as OpenMeteoResponse,
       );
 
       const summary = computeSummary(diffs, cPrecip, lPrecip, daily.length);
