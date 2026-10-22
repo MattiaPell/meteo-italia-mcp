@@ -2,6 +2,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "./http.js";
 import { MeteoError } from "./errors.js";
+import { log, errFields } from "./log.js";
 import { haversine } from "./geo.js";
 import { getWeights, macroareaFor } from "./model_tuning.js";
 import { dynamicWeights, skillsFromVerification, ModelSkill } from "./model_scoring.js";
@@ -255,8 +256,8 @@ async function fetchCalibration(
           minN: METAR_MIN_DAYS,
         };
       }
-    } catch {
-      // ripiega su ERA5
+    } catch (err) {
+      log.warn("calibrazione METAR fallita, ripiego su ERA5", errFields(err));
     }
   }
   const { forecastRes, archiveRes } = await fetchVerificationData(lat, lon, CALIBRATION_DAYS, models);

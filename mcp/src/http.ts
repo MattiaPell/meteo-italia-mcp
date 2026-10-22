@@ -200,7 +200,7 @@ function formatNetworkError(err: unknown, url: string): MeteoError {
  * ApiResult (never throw) so tool output shape stays stable. GET responses are
  * served from an in-memory TTL cache (E2) to avoid duplicate upstream calls.
  */
-async function requestWithRetry(url: string, opts: RetriableOpts): Promise<ApiResult> {
+async function executeRequest(url: string, opts: RetriableOpts): Promise<ApiResult> {
   const host = getHost(url);
 
   const cached = getCachedResponse(url, host, opts);
@@ -267,6 +267,23 @@ async function requestWithRetry(url: string, opts: RetriableOpts): Promise<ApiRe
 
   // Exhausted retries without resolving (shouldn't happen, but keeps TS happy).
   throw new MeteoError("RETRY_EXHAUSTED", `Request to ${url} failed after ${HTTP_MAX_RETRIES} retries`, lastErr);
+}
+
+/** Richieste GET in corso per URL: i chiamanti concorrenti sullo stesso URL condividono una sola fetch. */
+const inflight = new Map<string, Promise<ApiResult>>();
+
+async function requestWithRetry(url: string, opts: RetriableOpts): Promise<ApiResult> {
+  if (opts.method === "POST" || opts.noCache) return executeRequest(url, opts);
+
+  const key = cacheKey(url);
+  const pending = inflight.get(key);
+  if (pending) {
+    log.debug("upstream request joined", { host: getHost(url) });
+    return { ...(await pending) };
+  }
+  const request = executeRequest(url, opts).finally(() => inflight.delete(key));
+  inflight.set(key, request);
+  return request;
 }
 
 /**
