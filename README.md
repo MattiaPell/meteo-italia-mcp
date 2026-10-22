@@ -113,6 +113,8 @@ METEO_MCP_DEBUG_PORT=3000 node mcp/dist/index.js
 > **Breaking changes 2026-07**: `pc_allerte_wms` → `pc_allerte` (host bollettini defunto,
 > nuova fonte GitHub pcm-dpc), `dpc_radar_vmi` → `dpc_radar` (parsing risposta REST
 > aggiornata alla nuova piattaforma), `arpav_idro` nuova firma.
+> **Breaking changes 2026-10**: pagina di debug disattivata di default; si avvia solo
+> con `METEO_MCP_DEBUG_PORT` impostata (prima: porta 3000 sempre attiva).
 > **Nuovi 2026-07**: `meteo_brief`, `arpae_bollettino`, `arpafvg_previsioni`,
 > `arpafvg_stazione`, `arpa_marche_*`, `arpa_lombardia_*`, `arpa_piemonte_stazioni`,
 > `open_meteo_flood`, `open_meteo_seasonal`, `meteo_verification`.

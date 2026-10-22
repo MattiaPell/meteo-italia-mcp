@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { MeteoError } from "./errors.js";
 
-export const DEBUG_PORT = Number(process.env.METEO_MCP_DEBUG_PORT ?? 3000);
+/** Debug web page port; undefined (page disabled) unless METEO_MCP_DEBUG_PORT is set. */
+export const DEBUG_PORT: number | undefined = process.env.METEO_MCP_DEBUG_PORT
+  ? Number(process.env.METEO_MCP_DEBUG_PORT)
+  : undefined;
 export const CHECKWX_API_KEY = process.env.CHECKWX_API_KEY;
 
 /** Default per-request timeout (ms). Oltre 10s la fonte è considerata non disponibile. */

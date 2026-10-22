@@ -62,7 +62,7 @@ registerPrompts(server);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-// Debug web page on a TCP port (independent of stdio).
-startDebugServer(DEBUG_PORT);
+// Debug web page on a TCP port (independent of stdio), opt-in via METEO_MCP_DEBUG_PORT.
+if (DEBUG_PORT !== undefined) startDebugServer(DEBUG_PORT);
 
 console.error("[meteo-italia-mcp] stdio MCP server ready");

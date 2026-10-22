@@ -24,7 +24,7 @@ Richiede Node >= 18 (fetch nativo). Testato su Node 24.
 node dist/index.js
 ```
 
-**Con pagina di debug web:** imposta `METEO_MCP_DEBUG_PORT` (default 3000).
+**Con pagina di debug web:** imposta `METEO_MCP_DEBUG_PORT` (es. 3000). Senza variabile la pagina è disattivata.
 Il processo apre anche un listener HTTP sulla porta indicata servendo la UI di debug.
 
 ```bash
