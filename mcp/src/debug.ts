@@ -6,6 +6,7 @@ import { apiGet, CHECKWX_API_KEY, getMetrics, getCacheStats } from "./http.js";
 import { summarizeForecast, OpenMeteoRaw } from "./summaries.js";
 import { fetchLatestBulletin, fetchRadarLatest, fetchRadarDownload } from "./dpc.js";
 import { runBrief } from "./brief.js";
+import { log, errFields } from "./log.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, "public");
@@ -271,7 +272,7 @@ export function startDebugServer(port: number) {
     app.use(express.static(publicDir));
   } else if (!publicWarned) {
     publicWarned = true;
-    console.error(`[meteo-italia-mcp] debug public/ dir not found at ${publicDir}; serving API only`);
+    log.warn("debug public/ dir not found; serving API only", { publicDir });
   }
 
   app.get("/api/services", (_req, res) => res.json(Object.keys(DEBUG_SERVICES)));
@@ -321,11 +322,11 @@ export function startDebugServer(port: number) {
   app.get("/", (_req, res) => res.send(htmlPage()));
 
   const server = app.listen(port, "127.0.0.1", () => {
-    console.error(`[meteo-italia-mcp] debug page on http://localhost:${port}`);
+    log.info("debug page listening", { url: `http://localhost:${port}` });
   });
   server.on("error", (err) => {
     // A failed debug-page bind must not take down the MCP stdio server.
-    console.error(`[meteo-italia-mcp] debug page unavailable on :${port} (${err.message})`);
+    log.warn("debug page unavailable", { port, ...errFields(err) });
   });
   return server;
 }

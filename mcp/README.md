@@ -36,6 +36,10 @@ La pagina elenca tutti i servizi, permette di inserire i parametri e mostra
 richiesta (URL), risposta JSON e tempo di risposta / errori. Utile per validare
 i nomi dei modelli Open-Meteo e debuggare le chiamate prima di usarle in un client.
 
+**Log:** una riga JSON per evento su stderr (stdout è riservato al protocollo MCP).
+Livello con `METEO_MCP_LOG_LEVEL` = `debug` | `info` (default) | `warn` | `error` | `silent`.
+A `debug` si vede ogni chiamata upstream riuscita; a `warn` retry ed errori upstream.
+
 **CheckWX:** il tool `checkwx_metar_taf` richiede la variabile d'ambiente
 `CHECKWX_API_KEY`. Senza key, il tool ritorna un errore esplicito e puoi usare
 `aviationweather_metar` as fallback senza autenticazione.

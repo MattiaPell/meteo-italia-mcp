@@ -62,15 +62,15 @@ describe("Debug Server Security", () => {
 
     // Simulate error since the real bind might take time or randomly succeed on another port depending on OS
     const errObj = new Error("EADDRINUSE");
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
     // Emit the error manually to ensure the listener works
     server2.emit("error", errObj);
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("debug page unavailable"));
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("debug page unavailable"));
 
     // Ensure we close the second server to not leak
     server2.close();
-    consoleErrorSpy.mockRestore();
+    stderrSpy.mockRestore();
   });
 });
