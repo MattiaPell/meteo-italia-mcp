@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MeteoError } from "./errors.js";
+import { log, errFields } from "./log.js";
 
 /** Debug web page port; undefined (page disabled) unless METEO_MCP_DEBUG_PORT is set. */
 export const DEBUG_PORT: number | undefined = process.env.METEO_MCP_DEBUG_PORT
@@ -222,6 +223,7 @@ async function requestWithRetry(url: string, opts: RetriableOpts): Promise<ApiRe
         const data = parsePayload(text, opts.acceptText);
         const result: ApiResult = { ok: true, url, status: res.status, data, elapsedMs };
         recordMetrics(host, true, elapsedMs);
+        log.debug("upstream ok", { host, status: res.status, elapsedMs });
         if (opts.method !== "POST" && !opts.noCache) {
           cacheStore(url, result);
         }
@@ -231,11 +233,13 @@ async function requestWithRetry(url: string, opts: RetriableOpts): Promise<ApiRe
       // 429 or 5xx → retriable; 4xx (except 429) → terminal.
       const retriable = res.status === 429 || res.status >= 500;
       if (retriable && attempt < HTTP_MAX_RETRIES) {
+        log.warn("upstream retry", { host, status: res.status, attempt: attempt + 1 });
         await new Promise((r) => setTimeout(r, calculateBackoff(res, attempt)));
         continue;
       }
 
       recordMetrics(host, false, elapsedMs);
+      log.warn("upstream error", { host, status: res.status, elapsedMs });
       return {
         ok: false,
         url,
@@ -249,12 +253,14 @@ async function requestWithRetry(url: string, opts: RetriableOpts): Promise<ApiRe
       lastErr = err;
 
       if (attempt < HTTP_MAX_RETRIES) {
+        log.warn("upstream retry", { host, ...errFields(err), attempt: attempt + 1 });
         await new Promise((r) => setTimeout(r, calculateBackoff(undefined, attempt)));
         continue;
       }
 
       const elapsedMs = Date.now() - start;
       recordMetrics(host, false, elapsedMs);
+      log.error("upstream unreachable", { host, ...errFields(err), elapsedMs });
       throw formatNetworkError(err, url);
     }
   }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { apiGet, toToolResult } from "../http.js";
 import { haversine } from "../geo.js";
+import { log, errFields } from "../log.js";
 import type { ArpaBriefResult } from "./types.js";
 
 const xmlParser = new XMLParser({
@@ -49,7 +50,7 @@ export function parseMeteoTrentinoStations(xml: string): MeteoTrentinoStation[] 
       });
     }
   } catch (e) {
-    console.error("Failed to parse MeteoTrentino stations XML", e);
+    log.error("Failed to parse MeteoTrentino stations XML", errFields(e));
   }
   return out;
 }
@@ -106,7 +107,7 @@ export function parseMeteoTrentinoObs(xml: string): MeteoTrentinoObs {
       precipSumMm: precipSumMm != null && !Number.isNaN(precipSumMm) ? precipSumMm : null,
     };
   } catch (e) {
-    console.error("Failed to parse MeteoTrentino obs XML", e);
+    log.error("Failed to parse MeteoTrentino obs XML", errFields(e));
     return { tmin: null, tmax: null, rainMm: null, lastTempC: null, lastTempAt: null, precipSumMm: null };
   }
 }

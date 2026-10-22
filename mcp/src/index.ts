@@ -27,6 +27,7 @@ import {
 import { startDebugServer } from "./debug.js";
 import { DEBUG_PORT } from "./http.js";
 import { SERVER_INSTRUCTIONS, registerPrompts } from "./instructions.js";
+import { log } from "./log.js";
 
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
 
@@ -68,4 +69,4 @@ await server.connect(transport);
 // Debug web page on a TCP port (independent of stdio), opt-in via METEO_MCP_DEBUG_PORT.
 if (DEBUG_PORT !== undefined) startDebugServer(DEBUG_PORT);
 
-console.error("[meteo-italia-mcp] stdio MCP server ready");
+log.info("stdio MCP server ready", { version });
