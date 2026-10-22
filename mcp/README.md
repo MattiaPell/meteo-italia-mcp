@@ -14,7 +14,7 @@ npm install
 npm run build      # compila in dist/ con tsc
 ```
 
-Richiede Node >= 18 (fetch nativo). Testato su Node 24.
+Richiede Node >= 20 (fetch nativo). Testato in CI su Node 20 e 22.
 
 ## Esecuzione
 
