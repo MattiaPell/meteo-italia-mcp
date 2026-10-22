@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerOpenMeteo } from "./open_meteo.js";
@@ -27,10 +28,12 @@ import { startDebugServer } from "./debug.js";
 import { DEBUG_PORT } from "./http.js";
 import { SERVER_INSTRUCTIONS, registerPrompts } from "./instructions.js";
 
+const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
+
 const server = new McpServer(
   {
     name: "meteo-italia-mcp-server",
-    version: "1.0.0",
+    version,
   },
   { instructions: SERVER_INSTRUCTIONS },
 );
@@ -62,7 +65,7 @@ registerPrompts(server);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-// Debug web page on a TCP port (independent of stdio).
-startDebugServer(DEBUG_PORT);
+// Debug web page on a TCP port (independent of stdio), opt-in via METEO_MCP_DEBUG_PORT.
+if (DEBUG_PORT !== undefined) startDebugServer(DEBUG_PORT);
 
 console.error("[meteo-italia-mcp] stdio MCP server ready");

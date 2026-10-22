@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { MeteoError } from "./errors.js";
 
-export const DEBUG_PORT = Number(process.env.METEO_MCP_DEBUG_PORT ?? 3000);
+/** Debug web page port; undefined (page disabled) unless METEO_MCP_DEBUG_PORT is set. */
+export const DEBUG_PORT: number | undefined = process.env.METEO_MCP_DEBUG_PORT
+  ? Number(process.env.METEO_MCP_DEBUG_PORT)
+  : undefined;
 export const CHECKWX_API_KEY = process.env.CHECKWX_API_KEY;
 
 /** Default per-request timeout (ms). Oltre 10s la fonte è considerata non disponibile. */
@@ -77,6 +80,28 @@ interface CacheEntry {
   expires: number;
 }
 const cache = new Map<string, CacheEntry>();
+/** Max entries in the response cache; oldest are evicted first. */
+export const CACHE_MAX_ENTRIES = 500;
+
+function cacheStore(url: string, result: ApiResult): void {
+  const key = cacheKey(url);
+  cache.delete(key);
+  if (cache.size >= CACHE_MAX_ENTRIES) {
+    const now = Date.now();
+    for (const [k, v] of cache) {
+      if (v.expires <= now) cache.delete(k);
+    }
+    while (cache.size >= CACHE_MAX_ENTRIES) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
+  }
+  cache.set(key, { result, expires: Date.now() + cacheTtlFor(url) });
+}
+export function getCacheSize(): number {
+  return cache.size;
+}
 let cacheHits = 0;
 let cacheMisses = 0;
 
@@ -198,7 +223,7 @@ async function requestWithRetry(url: string, opts: RetriableOpts): Promise<ApiRe
         const result: ApiResult = { ok: true, url, status: res.status, data, elapsedMs };
         recordMetrics(host, true, elapsedMs);
         if (opts.method !== "POST" && !opts.noCache) {
-          cache.set(cacheKey(url), { result, expires: Date.now() + cacheTtlFor(url) });
+          cacheStore(url, result);
         }
         return result;
       }

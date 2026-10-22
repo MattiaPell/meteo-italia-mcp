@@ -7,10 +7,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 function makeClient(_server: McpServer) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
-  const client = new Client(
-    { name: "test-client", version: "1.0.0" },
-    { capabilities: {} }
-  );
+  const client = new Client({ name: "test-client", version: "1.0.0" }, { capabilities: {} });
 
   return { client, serverTransport, clientTransport };
 }
@@ -86,8 +83,8 @@ describe("Climatology Tool", () => {
       const res = await client.callTool({
         name: "meteo_climatology",
         arguments: {
-          cityName: "Torino"
-        }
+          cityName: "Torino",
+        },
       });
 
       expect(res.isError).toBeFalsy();

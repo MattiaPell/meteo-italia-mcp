@@ -48,7 +48,6 @@ describe("Debug Server Security", () => {
     expect(data.error).toBe("unknown service: toString");
   });
 
-
   it("should serve HTML page on GET /", async () => {
     const res = await fetch(`${baseUrl}/`);
     expect(res.status).toBe(200);
@@ -63,7 +62,7 @@ describe("Debug Server Security", () => {
 
     // Simulate error since the real bind might take time or randomly succeed on another port depending on OS
     const errObj = new Error("EADDRINUSE");
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // Emit the error manually to ensure the listener works
     server2.emit("error", errObj);
