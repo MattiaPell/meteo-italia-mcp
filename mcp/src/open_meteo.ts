@@ -25,8 +25,10 @@ const csv = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-async function fetchOpenMeteo(url: string, args: Record<string, any>) {
-  const params: Record<string, any> = { ...args };
+type OpenMeteoParams = Record<string, string | number | boolean | undefined | string[]>;
+
+async function fetchOpenMeteo(url: string, args: OpenMeteoParams) {
+  const params: OpenMeteoParams = { ...args };
   if (params.models && typeof params.models === "string") params.models = csv(params.models).map(normalizeModelId);
   if (params.hourly && typeof params.hourly === "string") params.hourly = csv(params.hourly);
   if (params.daily && typeof params.daily === "string") params.daily = csv(params.daily);

@@ -10,10 +10,7 @@ export default tseslint.config(
   {
     files: ["src/**/*.ts"],
     rules: {
-      // Il codebase usa `any` per i payload upstream non tipizzati (Open-Meteo,
-      // DPC, ARPA): introdurre tipi stretti per ogni fonte è fuori scope. La
-      // tipizzazione progressiva resta desiderabile nei cicli futuri.
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
@@ -25,6 +22,8 @@ export default tseslint.config(
   {
     files: ["src/__tests__/**/*.ts"],
     rules: {
+      // In test, mock e cast di payload upstream usano any
+      "@typescript-eslint/no-explicit-any": "off",
       // In test, assert su valori potenzialmente undefined è parte del setup
       "@typescript-eslint/no-non-null-assertion": "off",
     },

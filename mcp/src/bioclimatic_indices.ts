@@ -207,8 +207,8 @@ function calculateSnowLine(
 
 function evaluateAgricoltura(
   args: BioclimaticIndicesArgs,
-  thresholds: Record<string, any>,
-  _indices: Record<string, any>,
+  thresholds: Record<string, unknown>,
+  _indices: Record<string, unknown>,
 ) {
   const { soilTemp6cm } = args;
   if (soilTemp6cm !== undefined) {
@@ -222,7 +222,11 @@ function evaluateAgricoltura(
   }
 }
 
-function evaluateVite(args: BioclimaticIndicesArgs, thresholds: Record<string, any>, _indices: Record<string, any>) {
+function evaluateVite(
+  args: BioclimaticIndicesArgs,
+  thresholds: Record<string, unknown>,
+  _indices: Record<string, unknown>,
+) {
   const { tempMinC, precip7dMm, relativeHumidity } = args;
   // Regola dei Tre Dieci
   const hasT = tempMinC !== undefined && tempMinC > 10;
@@ -240,7 +244,11 @@ function evaluateVite(args: BioclimaticIndicesArgs, thresholds: Record<string, a
   }
 }
 
-function evaluateOlivo(args: BioclimaticIndicesArgs, thresholds: Record<string, any>, _indices: Record<string, any>) {
+function evaluateOlivo(
+  args: BioclimaticIndicesArgs,
+  thresholds: Record<string, unknown>,
+  _indices: Record<string, unknown>,
+) {
   const { tempC, tempMinC, relativeHumidity } = args;
   if (tempMinC !== undefined) {
     if (tempMinC < -10) {
@@ -268,8 +276,8 @@ function evaluateOlivo(args: BioclimaticIndicesArgs, thresholds: Record<string, 
 
 function evaluateApicoltura(
   args: BioclimaticIndicesArgs,
-  thresholds: Record<string, any>,
-  _indices: Record<string, any>,
+  thresholds: Record<string, unknown>,
+  _indices: Record<string, unknown>,
 ) {
   const { tempC, tempMinC, relativeHumidity, windSpeedKmH } = args;
   let volo = "Assente (api nel glomere)";
@@ -297,11 +305,19 @@ function evaluateApicoltura(
   };
 }
 
-function evaluateSolare(args: BioclimaticIndicesArgs, thresholds: Record<string, any>, _indices: Record<string, any>) {
+function evaluateSolare(
+  args: BioclimaticIndicesArgs,
+  thresholds: Record<string, unknown>,
+  _indices: Record<string, unknown>,
+) {
   thresholds.solareNote = "DNI > 600 W/m² = ottimale, < 200 W/m² = basso. Rapporto direct/diffuse indica efficienza.";
 }
 
-function evaluateEolico(args: BioclimaticIndicesArgs, thresholds: Record<string, any>, _indices: Record<string, any>) {
+function evaluateEolico(
+  args: BioclimaticIndicesArgs,
+  thresholds: Record<string, unknown>,
+  _indices: Record<string, unknown>,
+) {
   const { windSpeedKmH } = args;
   let eolicoVolo = "Fuori range operativo (nessuna produzione)";
   if (windSpeedKmH !== undefined) {
@@ -318,8 +334,8 @@ function evaluateEolico(args: BioclimaticIndicesArgs, thresholds: Record<string,
 
 function evaluateEnergiaFv(
   args: BioclimaticIndicesArgs,
-  thresholds: Record<string, any>,
-  indices: Record<string, any>,
+  thresholds: Record<string, unknown>,
+  indices: Record<string, unknown>,
 ) {
   const { tempC, cloudCover, uvIndex } = args;
   let fvScore = 100;
@@ -358,8 +374,8 @@ function evaluateEnergiaFv(
 
 function evaluateEnergiaEolico(
   args: BioclimaticIndicesArgs,
-  thresholds: Record<string, any>,
-  indices: Record<string, any>,
+  thresholds: Record<string, unknown>,
+  indices: Record<string, unknown>,
 ) {
   const { windSpeedKmH } = args;
   if (windSpeedKmH !== undefined) {
@@ -395,8 +411,8 @@ function evaluateEnergiaEolico(
 
 function evaluateSpiaggiaMare(
   args: BioclimaticIndicesArgs,
-  thresholds: Record<string, any>,
-  indices: Record<string, any>,
+  thresholds: Record<string, unknown>,
+  indices: Record<string, unknown>,
 ) {
   const { windSpeedKmH, uvIndex, seaSurfaceTempC } = args;
   let beachScore = 100;
@@ -432,8 +448,8 @@ function evaluateSpiaggiaMare(
 
 function evaluateMontagnaSci(
   args: BioclimaticIndicesArgs,
-  thresholds: Record<string, any>,
-  indices: Record<string, any>,
+  thresholds: Record<string, unknown>,
+  indices: Record<string, unknown>,
 ) {
   const { tempC, windSpeedKmH, snowfallSumCm } = args;
   let skiScore = 100;
@@ -464,8 +480,8 @@ function evaluateMontagnaSci(
 
 function evaluateUseCaseThresholds(args: BioclimaticIndicesArgs) {
   const { useCase } = args;
-  const thresholds: Record<string, any> = {};
-  const indices: Record<string, any> = {};
+  const thresholds: Record<string, unknown> = {};
+  const indices: Record<string, unknown> = {};
 
   switch (useCase) {
     case "agricoltura":
@@ -551,7 +567,7 @@ export async function handleBioclimaticIndices(args: BioclimaticIndicesArgs) {
   } = args;
 
   const start = Date.now();
-  const indices: Record<string, any> = {};
+  const indices: Record<string, unknown> = {};
 
   const heatIndex = calculateHeatIndex(tempC, relativeHumidity);
   if (heatIndex) indices.heatIndex = heatIndex;
