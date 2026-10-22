@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { apiGet, getCacheStats } from "../http.js";
+import { apiGet, getCacheStats, getCacheSize, CACHE_MAX_ENTRIES } from "../http.js";
 
 describe("apiGet cache (E2)", () => {
   const realFetch = globalThis.fetch;
@@ -24,5 +24,13 @@ describe("apiGet cache (E2)", () => {
     expect(calls).toBe(1);
     expect((r2 as any).cached).toBe(true);
     expect(getCacheStats().hits).toBeGreaterThan(before.hits);
+  });
+
+  it("caps the cache at CACHE_MAX_ENTRIES", async () => {
+    globalThis.fetch = vi.fn(async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
+    for (let i = 0; i < CACHE_MAX_ENTRIES + 20; i++) {
+      await apiGet("https://api.open-meteo.com/v1/forecast", { latitude: i, longitude: 0 });
+    }
+    expect(getCacheSize()).toBe(CACHE_MAX_ENTRIES);
   });
 });
